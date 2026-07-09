@@ -15,6 +15,7 @@ import 'package:PiliPlus/models_new/download/bili_download_entry_info.dart';
 import 'package:PiliPlus/models_new/download/download_collection.dart';
 import 'package:PiliPlus/pages/common/multi_select/base.dart';
 import 'package:PiliPlus/pages/download/downloading/view.dart';
+import 'package:PiliPlus/pages/download/utils/cache_share.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
 import 'package:PiliPlus/utils/cache_manager.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
@@ -551,6 +552,12 @@ class DetailItem extends StatelessWidget {
                         SmartDialog.dismiss(tag: 'export');
                       }
                     },
+                  ),
+                if (canDel && PlatformUtils.isMobile)
+                  PopupMenuItem(
+                    height: 38,
+                    child: const Text('分享导出', style: TextStyle(fontSize: 13)),
+                    onTap: () => CacheShare.shareEntry(entry),
                   ),
                 ...?extraMoreItemsBuilder?.call(menuContext),
                 if (canDel) const PopupMenuDivider(height: 8),
