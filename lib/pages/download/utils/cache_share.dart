@@ -18,6 +18,7 @@ abstract final class CacheShare {
   static const _progressTagPrefix = 'cache-share-progress-';
   static final Map<int, ValueChanged<BiliDownloadEntryInfo>>
   _pendingShareCallbacks = {};
+  static final Set<int> _cancellingCids = {};
 
   static Future<void> shareAfterDownload(
     DownloadService downloadService,
@@ -77,6 +78,45 @@ abstract final class CacheShare {
   ) async {
     await SmartDialog.dismiss(tag: _progressTag(entry.cid));
     await shareEntry(entry);
+  }
+
+  static Future<void> _cancelDownloadAndShare(
+    DownloadService downloadService,
+    int cid,
+  ) async {
+    if (!_cancellingCids.add(cid)) {
+      return;
+    }
+    try {
+      final callback = _pendingShareCallbacks.remove(cid);
+      if (callback != null) {
+        downloadService.completedEntryNotifier.remove(callback);
+      }
+
+      BiliDownloadEntryInfo? entry;
+      final current = downloadService.curDownload.value;
+      if (current?.cid == cid) {
+        entry = current;
+      } else {
+        for (final item in downloadService.waitDownloadQueue) {
+          if (item.cid == cid) {
+            entry = item;
+            break;
+          }
+        }
+      }
+      if (entry != null) {
+        await downloadService.deleteDownload(
+          entry: entry,
+          removeQueue: true,
+        );
+      }
+
+      await SmartDialog.dismiss(tag: _progressTag(cid));
+      SmartDialog.showToast('已取消缓存和自动分享');
+    } finally {
+      _cancellingCids.remove(cid);
+    }
   }
 
   /// 用 FFmpeg 合并缓存的音视频流后调起系统分享面板
@@ -204,46 +244,64 @@ class _DownloadProgressPill extends StatelessWidget {
           right: 16,
           bottom: MediaQuery.viewPaddingOf(context).bottom + 30,
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        decoration: BoxDecoration(
+        child: Material(
           color: colorScheme.primaryContainer.withValues(
             alpha: CustomToast.toastOpacity,
           ),
           borderRadius: const BorderRadius.all(Radius.circular(28)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '完成后将自动打开分享',
-              style: TextStyle(
-                fontSize: 13,
-                color: colorScheme.onPrimaryContainer,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => CacheShare._cancelDownloadAndShare(
+              downloadService,
+              cid,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '完成后将自动打开分享',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$status · ${_formatMb(downloadedBytes)} / '
+                    '${totalBytes == 0 ? '-- MB' : _formatMb(totalBytes)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  ClipRRect(
+                    borderRadius: const BorderRadius.all(Radius.circular(2)),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 4,
+                      color: colorScheme.primary,
+                      backgroundColor: colorScheme.onPrimaryContainer
+                          .withValues(alpha: 0.16),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    '点击取消下载与分享',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colorScheme.onPrimaryContainer.withValues(
+                        alpha: 0.75,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              '$status · ${_formatMb(downloadedBytes)} / '
-              '${totalBytes == 0 ? '-- MB' : _formatMb(totalBytes)}',
-              style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.onPrimaryContainer,
-              ),
-            ),
-            const SizedBox(height: 7),
-            ClipRRect(
-              borderRadius: const BorderRadius.all(Radius.circular(2)),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 4,
-                color: colorScheme.primary,
-                backgroundColor: colorScheme.onPrimaryContainer.withValues(
-                  alpha: 0.16,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       );
     });
