@@ -71,6 +71,7 @@ class ReplyItemGrpc extends StatelessWidget {
     this.onCheckReply,
     this.onToggleTop,
     this.jumpToDialogue,
+    this.showFullImages,
   });
   final ReplyInfo replyItem;
   final int replyLevel;
@@ -85,6 +86,7 @@ class ReplyItemGrpc extends StatelessWidget {
   final ValueChanged<ReplyInfo>? onCheckReply;
   final ValueChanged<ReplyInfo>? onToggleTop;
   final VoidCallback? jumpToDialogue;
+  final bool? showFullImages;
 
   static final _voteRegExp = RegExp(r"^\{vote:\d+?\}$");
   static final _timeRegExp = RegExp(r'^(?:\d+[:：])?\d+[:：]\d+$');
@@ -346,18 +348,68 @@ class ReplyItemGrpc extends StatelessWidget {
         if (replyItem.content.pictures.isNotEmpty) ...[
           Padding(
             padding: padding,
-            child: ImageGridView(
-              picArr: replyItem.content.pictures
-                  .map(
-                    (item) => ImageModel(
-                      width: item.imgWidth,
-                      height: item.imgHeight,
-                      url: item.imgSrc,
-                    ),
+            child: showFullImages == true
+                ? LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = constraints.maxWidth;
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Column(
+                          spacing: 8,
+                          children: replyItem.content.pictures.map((item) {
+                            final sourceWidth = item.imgWidth > 0
+                                ? item.imgWidth
+                                : 1;
+                            final sourceHeight = item.imgHeight > 0
+                                ? item.imgHeight
+                                : 1;
+                            return NetworkImgLayer(
+                              src: item.imgSrc,
+                              width: width,
+                              height: width * sourceHeight / sourceWidth,
+                              quality: 100,
+                              fit: BoxFit.contain,
+                            );
+                          }).toList(),
+                        ),
+                      );
+                    },
                   )
-                  .toList(),
-              onViewImage: onViewImage,
-            ),
+                : showFullImages == false
+                ? LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = (constraints.maxWidth - 10) / 3;
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Wrap(
+                          spacing: 5,
+                          runSpacing: 5,
+                          children: replyItem.content.pictures
+                              .map(
+                                (item) => NetworkImgLayer(
+                                  src: item.imgSrc,
+                                  width: width,
+                                  height: width,
+                                  quality: 80,
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      );
+                    },
+                  )
+                : ImageGridView(
+                    picArr: replyItem.content.pictures
+                        .map(
+                          (item) => ImageModel(
+                            width: item.imgWidth,
+                            height: item.imgHeight,
+                            url: item.imgSrc,
+                          ),
+                        )
+                        .toList(),
+                    onViewImage: onViewImage,
+                  ),
           ),
           const SizedBox(height: 4),
         ],

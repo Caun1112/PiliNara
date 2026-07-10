@@ -1,3 +1,5 @@
+import 'dart:math' show min;
+
 import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/style.dart';
@@ -19,7 +21,6 @@ import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/theme_ext.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
-import 'package:PiliPlus/utils/share_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:clipboard/clipboard.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
@@ -29,7 +30,6 @@ import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:pretty_qr_code/pretty_qr_code.dart';
-import 'package:share_plus/share_plus.dart';
 
 class SavePanel extends StatefulWidget {
   const SavePanel({
@@ -68,6 +68,7 @@ class _SavePanelState extends State<SavePanel> {
   final boundaryKey = GlobalKey();
 
   bool showBottom = false;
+  bool showFullImages = false;
 
   // item
   Object get _item => widget.item;
@@ -303,21 +304,6 @@ class _SavePanelState extends State<SavePanel> {
       final picName =
           "${Constants.appName}_${itemType}_${DateFormat('yyyyMMddHHmmss').format(DateTime.now())}";
       switch (action) {
-        case _PicAction.share:
-          Get.back();
-          SmartDialog.dismiss();
-          SharePlus.instance.share(
-            ShareParams(
-              files: [
-                XFile.fromData(
-                  pngBytes,
-                  name: picName,
-                  mimeType: 'image/png',
-                ),
-              ],
-              sharePositionOrigin: await ShareUtils.sharePositionOrigin,
-            ),
-          );
         case _PicAction.copy:
           await FlutterClipboard.copyImage(pngBytes);
           SmartDialog.dismiss();
@@ -379,6 +365,7 @@ class _SavePanelState extends State<SavePanel> {
                             replyLevel: 0,
                             needDivider: false,
                             upMid: widget.upMid,
+                            showFullImages: showFullImages,
                           ),
                         ),
                         DynamicItemModel dyn => IgnorePointer(
@@ -551,52 +538,69 @@ class _SavePanelState extends State<SavePanel> {
                 right: padding.right,
                 bottom: 25 + padding.bottom,
               ),
-              child: Row(
-                spacing: 24,
-                mainAxisAlignment: .center,
-                children: [
-                  iconButton(
-                    size: 42,
-                    tooltip: '关闭',
-                    icon: const Icon(Icons.clear),
-                    onPressed: Get.back,
-                    bgColor: theme.colorScheme.onInverseSurface,
-                    iconColor: theme.colorScheme.onSurfaceVariant,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: FractionallySizedBox(
+                  widthFactor: 0.55,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final buttonSize = min(42.0, constraints.maxWidth / 5);
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          iconButton(
+                            size: buttonSize,
+                            tooltip: showBottom ? '隐藏二维码' : '显示二维码',
+                            context: context,
+                            icon: showBottom
+                                ? const Icon(Icons.visibility_off)
+                                : const Icon(Icons.visibility),
+                            onPressed: () => setState(() {
+                              showBottom = !showBottom;
+                            }),
+                          ),
+                          iconButton(
+                            size: buttonSize,
+                            tooltip: '关闭',
+                            icon: const Icon(Icons.clear),
+                            onPressed: Get.back,
+                            bgColor: theme.colorScheme.onInverseSurface,
+                            iconColor: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          iconButton(
+                            size: buttonSize,
+                            tooltip: '保存',
+                            context: context,
+                            icon: const Icon(Icons.save_alt),
+                            onPressed: _onPicAction,
+                          ),
+                          iconButton(
+                            size: buttonSize,
+                            tooltip: showFullImages
+                                ? '切换为集成展示'
+                                : '切换为全图展示',
+                            context: context,
+                            icon: Icon(
+                              showFullImages
+                                  ? Icons.grid_view_outlined
+                                  : Icons.view_agenda_outlined,
+                            ),
+                            onPressed: () => setState(() {
+                              showFullImages = !showFullImages;
+                            }),
+                          ),
+                          iconButton(
+                            size: buttonSize,
+                            tooltip: '复制图片',
+                            context: context,
+                            icon: const Icon(Icons.copy_outlined),
+                            onPressed: () => _onPicAction(_PicAction.copy),
+                          ),
+                        ],
+                      );
+                    },
                   ),
-                  iconButton(
-                    size: 42,
-                    tooltip: showBottom ? '隐藏' : '显示',
-                    context: context,
-                    icon: showBottom
-                        ? const Icon(Icons.visibility_off)
-                        : const Icon(Icons.visibility),
-                    onPressed: () => setState(() {
-                      showBottom = !showBottom;
-                    }),
-                  ),
-                  if (PlatformUtils.isMobile)
-                    iconButton(
-                      size: 42,
-                      tooltip: '分享',
-                      context: context,
-                      icon: const Icon(Icons.share),
-                      onPressed: () => _onPicAction(_PicAction.share),
-                    ),
-                  iconButton(
-                    size: 42,
-                    tooltip: '复制图片',
-                    context: context,
-                    icon: const Icon(Icons.copy_outlined),
-                    onPressed: () => _onPicAction(_PicAction.copy),
-                  ),
-                  iconButton(
-                    size: 42,
-                    tooltip: '保存',
-                    context: context,
-                    icon: const Icon(Icons.save_alt),
-                    onPressed: _onPicAction,
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -608,4 +612,4 @@ class _SavePanelState extends State<SavePanel> {
 
 enum _CoverType { def16_9, square }
 
-enum _PicAction { save, share, copy }
+enum _PicAction { save, copy }
