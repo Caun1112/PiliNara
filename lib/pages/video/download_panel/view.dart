@@ -127,45 +127,6 @@ class _DownloadPanelState extends State<DownloadPanel> {
       child: Row(
         spacing: 16,
         children: [
-          Text(
-            '目标画质',
-            style: textStyle,
-          ),
-          Builder(
-            builder: (context) => StaticPopupMenuButton<VideoQuality>(
-              initialValue: _quality,
-              onSelected: (value) {
-                _quality = value;
-                (context as Element).markNeedsBuild();
-              },
-              itemBuilder: (context) => VideoQuality.values
-                  .map(
-                    (e) => PopupMenuItem(
-                      value: e,
-                      child: Text(e.desc),
-                    ),
-                  )
-                  .toList(),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _quality.desc,
-                      style: const TextStyle(height: 1),
-                      strutStyle: const StrutStyle(height: 1, leading: 0),
-                    ),
-                    Icon(
-                      size: 18,
-                      Icons.keyboard_arrow_down,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
           if (kDebugMode || PlatformUtils.isMobile) ...[
             const Spacer(),
             StreamBuilder(
@@ -602,7 +563,56 @@ class _DownloadPanelState extends State<DownloadPanel> {
               GetPageRoute(page: () => const DownloadPage()),
             ),
           ),
+          SizedBox(
+            height: 20,
+            child: VerticalDivider(
+              width: 1,
+              color: dividerColor,
+            ),
+          ),
+          _buildQualityBtn(theme),
         ],
+      ),
+    );
+  }
+
+  Widget _buildQualityBtn(ThemeData theme) {
+    return Expanded(
+      child: Builder(
+        builder: (context) => StaticPopupMenuButton<VideoQuality>(
+          initialValue: _quality,
+          onSelected: (value) {
+            _quality = value;
+            (context as Element).markNeedsBuild();
+          },
+          itemBuilder: (context) => VideoQuality.values
+              .map(
+                (e) => PopupMenuItem(
+                  value: e,
+                  child: Text(e.desc),
+                ),
+              )
+              .toList(),
+          child: SizedBox(
+            height: 40,
+            width: double.infinity,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _quality.desc,
+                  style: const TextStyle(height: 1),
+                  strutStyle: const StrutStyle(height: 1, leading: 0),
+                ),
+                Icon(
+                  size: 18,
+                  Icons.keyboard_arrow_down,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
