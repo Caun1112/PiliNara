@@ -14,6 +14,7 @@ import 'package:PiliPlus/models_new/video/video_detail/data.dart';
 import 'package:PiliPlus/models_new/video/video_detail/episode.dart' as ugc;
 import 'package:PiliPlus/models_new/video/video_detail/page.dart';
 import 'package:PiliPlus/pages/download/view.dart';
+import 'package:PiliPlus/pages/download/utils/cache_share.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/widgets/page.dart';
@@ -46,6 +47,7 @@ class DownloadPanel extends StatefulWidget {
     required this.heroTag,
     this.ugcIntroController,
     required this.cidSet,
+    this.shareAfterDownload = false,
   });
 
   final int index;
@@ -57,6 +59,7 @@ class DownloadPanel extends StatefulWidget {
   final String heroTag;
   final UgcIntroController? ugcIntroController;
   final Set<int> cidSet;
+  final bool shareAfterDownload;
 
   @override
   State<DownloadPanel> createState() => _DownloadPanelState();
@@ -263,6 +266,9 @@ class _DownloadPanelState extends State<DownloadPanel> {
     }
 
     if (cidSet.contains(cid)) {
+      if (widget.shareAfterDownload) {
+        CacheShare.shareAfterDownload(_downloadService, cid);
+      }
       if (kDebugMode) {
         SmartDialog.showToast('downloaded');
       }
@@ -331,6 +337,9 @@ class _DownloadPanelState extends State<DownloadPanel> {
           break;
       }
       cidSet.add(cid);
+      if (widget.shareAfterDownload) {
+        CacheShare.shareAfterDownload(_downloadService, cid);
+      }
       return true;
     } catch (e, s) {
       Utils.reportError(e, s);
@@ -559,32 +568,34 @@ class _DownloadPanelState extends State<DownloadPanel> {
       ),
       child: Row(
         children: [
-          _buildBottomBtn(
-            text: '缓存全部',
-            onTap: () {
-              showConfirmDialog(
-                context: context,
-                title: const Text('确定缓存全部？'),
-                onConfirm: () {
-                  for (int i = 0; i < widget.episodes.length; i++) {
-                    _onDownload(
-                      index: i,
-                      episode: widget.episodes[i],
-                      isDownloadAll: true,
-                    );
-                  }
-                  if (mounted) setState(() {});
-                },
-              );
-            },
-          ),
-          SizedBox(
-            height: 20,
-            child: VerticalDivider(
-              width: 1,
-              color: dividerColor,
+          if (!widget.shareAfterDownload) ...[
+            _buildBottomBtn(
+              text: '缓存全部',
+              onTap: () {
+                showConfirmDialog(
+                  context: context,
+                  title: const Text('确定缓存全部？'),
+                  onConfirm: () {
+                    for (int i = 0; i < widget.episodes.length; i++) {
+                      _onDownload(
+                        index: i,
+                        episode: widget.episodes[i],
+                        isDownloadAll: true,
+                      );
+                    }
+                    if (mounted) setState(() {});
+                  },
+                );
+              },
             ),
-          ),
+            SizedBox(
+              height: 20,
+              child: VerticalDivider(
+                width: 1,
+                color: dividerColor,
+              ),
+            ),
+          ],
           _buildBottomBtn(
             text: '查看缓存',
             onTap: () => Navigator.of(context).push(

@@ -21,6 +21,7 @@ import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/share_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
+import 'package:clipboard/clipboard.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -66,7 +67,7 @@ class SavePanel extends StatefulWidget {
 class _SavePanelState extends State<SavePanel> {
   final boundaryKey = GlobalKey();
 
-  bool showBottom = true;
+  bool showBottom = false;
 
   // item
   Object get _item => widget.item;
@@ -284,8 +285,8 @@ class _SavePanelState extends State<SavePanel> {
     return uri;
   }
 
-  Future<void> _onSaveOrSharePic([bool isShare = false]) async {
-    if (!isShare &&
+  Future<void> _onPicAction([_PicAction action = _PicAction.save]) async {
+    if (action == _PicAction.save &&
         PlatformUtils.isMobile &&
         !await ImageUtils.checkPermissionDependOnSdkInt()) {
       return;
@@ -301,31 +302,34 @@ class _SavePanelState extends State<SavePanel> {
       final pngBytes = byteData!.buffer.asUint8List();
       final picName =
           "${Constants.appName}_${itemType}_${DateFormat('yyyyMMddHHmmss').format(DateTime.now())}";
-      if (isShare) {
-        Get.back();
-        SmartDialog.dismiss();
-        SharePlus.instance.share(
-          ShareParams(
-            files: [
-              XFile.fromData(
-                pngBytes,
-                name: picName,
-                mimeType: 'image/png',
-              ),
-            ],
-            sharePositionOrigin: await ShareUtils.sharePositionOrigin,
-          ),
-        );
-      } else {
-        final result = await ImageUtils.saveByteImg(
-          bytes: pngBytes,
-          fileName: picName,
-        );
-        if (result != null) {
-          if (result.isSuccess) {
+      switch (action) {
+        case _PicAction.share:
+          Get.back();
+          SmartDialog.dismiss();
+          SharePlus.instance.share(
+            ShareParams(
+              files: [
+                XFile.fromData(
+                  pngBytes,
+                  name: picName,
+                  mimeType: 'image/png',
+                ),
+              ],
+              sharePositionOrigin: await ShareUtils.sharePositionOrigin,
+            ),
+          );
+        case _PicAction.copy:
+          await FlutterClipboard.copyImage(pngBytes);
+          SmartDialog.dismiss();
+          SmartDialog.showToast('已复制图片');
+        case _PicAction.save:
+          final result = await ImageUtils.saveByteImg(
+            bytes: pngBytes,
+            fileName: picName,
+          );
+          if (result?.isSuccess == true) {
             Get.back();
           }
-        }
       }
     } catch (e) {
       if (kDebugMode) debugPrint('on save/share reply: $e');
@@ -548,7 +552,7 @@ class _SavePanelState extends State<SavePanel> {
                 bottom: 25 + padding.bottom,
               ),
               child: Row(
-                spacing: 40,
+                spacing: 24,
                 mainAxisAlignment: .center,
                 children: [
                   iconButton(
@@ -576,14 +580,21 @@ class _SavePanelState extends State<SavePanel> {
                       tooltip: '分享',
                       context: context,
                       icon: const Icon(Icons.share),
-                      onPressed: () => _onSaveOrSharePic(true),
+                      onPressed: () => _onPicAction(_PicAction.share),
                     ),
+                  iconButton(
+                    size: 42,
+                    tooltip: '复制图片',
+                    context: context,
+                    icon: const Icon(Icons.copy_outlined),
+                    onPressed: () => _onPicAction(_PicAction.copy),
+                  ),
                   iconButton(
                     size: 42,
                     tooltip: '保存',
                     context: context,
                     icon: const Icon(Icons.save_alt),
-                    onPressed: _onSaveOrSharePic,
+                    onPressed: _onPicAction,
                   ),
                 ],
               ),
@@ -596,3 +607,5 @@ class _SavePanelState extends State<SavePanel> {
 }
 
 enum _CoverType { def16_9, square }
+
+enum _PicAction { save, share, copy }

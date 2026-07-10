@@ -41,6 +41,7 @@ import 'package:PiliPlus/models_new/video/video_stein_edgeinfo/data.dart';
 import 'package:PiliPlus/pages/ai_chat/controller.dart';
 import 'package:PiliPlus/pages/audio/view.dart';
 import 'package:PiliPlus/pages/common/publish/publish_route.dart';
+import 'package:PiliPlus/pages/download/utils/cache_share.dart';
 import 'package:PiliPlus/pages/search/widgets/search_text.dart';
 import 'package:PiliPlus/pages/sponsor_block/block_mixin.dart';
 import 'package:PiliPlus/pages/video/download_panel/view.dart';
@@ -1868,7 +1869,11 @@ class VideoDetailController extends GetxController
     );
   }
 
-  Future<void> onDownload(BuildContext context) async {
+  Future<void> onDownload(
+    BuildContext context, {
+    bool currentOnly = false,
+    bool shareAfterDownload = false,
+  }) async {
     VideoDetailData? videoDetail;
     List<ugc.BaseEpisodeItem>? episodes;
     UgcIntroController? ugcIntroController;
@@ -1903,6 +1908,22 @@ class VideoDetailController extends GetxController
       }
     }
     if (episodes != null && episodes.isNotEmpty) {
+      final currentCid = seasonCid ?? cid.value;
+      ugc.BaseEpisodeItem? currentEpisode;
+      if (currentOnly) {
+        currentEpisode = episodes.firstWhereOrNull(
+          (episode) =>
+              episode.cid == currentCid ||
+              (episode is ugc.EpisodeItem &&
+                  episode.pages?.any((page) => page.cid == currentCid) == true),
+        );
+        if (currentEpisode == null) {
+          SmartDialog.showToast('未找到当前视频');
+          return;
+        }
+        episodes = [currentEpisode];
+      }
+
       final downloadService = Get.find<DownloadService>();
       await downloadService.waitForInitialization;
       if (!context.mounted) {
@@ -1912,9 +1933,23 @@ class VideoDetailController extends GetxController
           .followedBy(downloadService.waitDownloadQueue)
           .map((e) => e.cid)
           .toSet();
-      final index = episodes.indexWhere(
-        (e) => e.cid == (seasonCid ?? cid.value),
-      );
+      final isCollection = !isUgc || videoDetail?.ugcSeason != null;
+      if (currentOnly && shareAfterDownload && !isCollection) {
+        if (!cidSet.contains(currentCid) && currentEpisode is Part) {
+          downloadService.downloadVideo(
+            currentEpisode,
+            videoDetail,
+            null,
+            VideoQuality.fromCode(Pref.defaultVideoQa),
+          );
+        }
+        CacheShare.shareAfterDownload(downloadService, currentCid);
+        return;
+      }
+
+      final index = currentOnly
+          ? 0
+          : episodes.indexWhere((episode) => episode.cid == currentCid);
 
       showModalBottomSheet(
         context: context,
@@ -1945,6 +1980,7 @@ class VideoDetailController extends GetxController
               heroTag: heroTag,
               ugcIntroController: ugcIntroController,
               cidSet: cidSet,
+              shareAfterDownload: shareAfterDownload,
             ),
           );
         },

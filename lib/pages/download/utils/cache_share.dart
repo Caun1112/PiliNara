@@ -1,16 +1,52 @@
 import 'dart:io';
 
 import 'package:PiliPlus/models_new/download/bili_download_entry_info.dart';
+import 'package:PiliPlus/services/download/download_service.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/share_utils.dart';
 import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/ffprobe_kit.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
+import 'package:flutter/foundation.dart' show ValueChanged;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:path/path.dart' as path;
 import 'package:share_plus/share_plus.dart';
 
 abstract final class CacheShare {
+  static final Map<int, ValueChanged<BiliDownloadEntryInfo>>
+  _pendingShareCallbacks = {};
+
+  static Future<void> shareAfterDownload(
+    DownloadService downloadService,
+    int cid,
+  ) async {
+    await downloadService.waitForInitialization;
+    for (final entry in downloadService.downloadList) {
+      if (entry.cid == cid) {
+        await shareEntry(entry);
+        return;
+      }
+    }
+
+    if (_pendingShareCallbacks.containsKey(cid)) {
+      SmartDialog.showToast('缓存完成后将自动打开分享');
+      return;
+    }
+
+    late final ValueChanged<BiliDownloadEntryInfo> callback;
+    callback = (entry) {
+      if (entry.cid != cid) {
+        return;
+      }
+      downloadService.completedEntryNotifier.remove(callback);
+      _pendingShareCallbacks.remove(cid);
+      shareEntry(entry);
+    };
+    _pendingShareCallbacks[cid] = callback;
+    downloadService.completedEntryNotifier.add(callback);
+    SmartDialog.showToast('缓存完成后将自动打开分享');
+  }
+
   /// 用 FFmpeg 合并缓存的音视频流后调起系统分享面板
   static Future<void> shareEntry(BiliDownloadEntryInfo entry) async {
     try {

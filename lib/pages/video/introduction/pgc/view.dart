@@ -20,6 +20,7 @@ import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
+import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 
 class PgcIntroPage extends StatefulWidget {
   final int? cid;
@@ -430,16 +431,15 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
               text: NumUtils.numFormat(item.stat!.favorite),
             ),
           ),
-          Obx(
-            () => ActionItem(
-              icon: const Icon(FontAwesomeIcons.clock),
-              selectIcon: const Icon(FontAwesomeIcons.solidClock),
-              onTap: () =>
-                  introController.handleAction(introController.viewLater),
-              selectStatus: introController.hasLater.value,
-              semanticsLabel: '再看',
-              text: '再看',
+          ActionItem(
+            icon: const Icon(MdiIcons.folderDownloadOutline),
+            onTap: () => videoDetailCtr.onDownload(
+              context,
+              currentOnly: true,
+              shareAfterDownload: true,
             ),
+            semanticsLabel: '离线缓存并分享导出',
+            text: '',
           ),
           ActionItem(
             icon: const Icon(FontAwesomeIcons.shareFromSquare),

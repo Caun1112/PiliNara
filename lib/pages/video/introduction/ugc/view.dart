@@ -549,18 +549,6 @@ class _UgcIntroPanelState extends State<UgcIntroPanel> {
           ),
           Obx(
             () => ActionItem(
-              icon: const Icon(FontAwesomeIcons.thumbsDown),
-              selectIcon: const Icon(FontAwesomeIcons.solidThumbsDown),
-              onTap: () => introController.handleAction(
-                introController.actionDislikeVideo,
-              ),
-              selectStatus: introController.hasDislike.value,
-              semanticsLabel: '点踩',
-              text: "点踩",
-            ),
-          ),
-          Obx(
-            () => ActionItem(
               animation: introController.tripleAnimation,
               icon: const Icon(FontAwesomeIcons.b),
               selectIcon: const Icon(FontAwesomeIcons.b),
@@ -589,16 +577,15 @@ class _UgcIntroPanelState extends State<UgcIntroPanel> {
                   : null,
             ),
           ),
-          Obx(
-            () => ActionItem(
-              icon: const Icon(FontAwesomeIcons.clock),
-              selectIcon: const Icon(FontAwesomeIcons.solidClock),
-              onTap: () =>
-                  introController.handleAction(introController.viewLater),
-              selectStatus: introController.hasLater.value,
-              semanticsLabel: '再看',
-              text: '再看',
+          ActionItem(
+            icon: const Icon(MdiIcons.folderDownloadOutline),
+            onTap: () => videoDetailCtr.onDownload(
+              context,
+              currentOnly: true,
+              shareAfterDownload: true,
             ),
+            semanticsLabel: '离线缓存并分享导出',
+            text: '',
           ),
           ActionItem(
             icon: const Icon(FontAwesomeIcons.shareFromSquare),
