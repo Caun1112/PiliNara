@@ -100,14 +100,12 @@ void imageSaveDialog({
                       ),
                     iconButton(
                       iconSize: iconSize,
-                      tooltip: '保存封面图',
-                      onPressed: () async {
-                        bool saveStatus = await ImageUtils.downloadImg([cover]);
-                        if (saveStatus) {
-                          SmartDialog.dismiss();
-                        }
+                      tooltip: '复制封面图',
+                      onPressed: () {
+                        SmartDialog.dismiss();
+                        ImageUtils.copyImg(cover);
                       },
-                      icon: const Icon(Icons.download),
+                      icon: const Icon(Icons.copy_outlined),
                     ),
                   ],
                 ],
