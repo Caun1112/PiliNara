@@ -527,7 +527,7 @@ abstract final class Pref {
 
   static int get defaultDynamicTypeIndex => _setting.get(
     SettingBoxKey.defaultDynamicType,
-    defaultValue: DynamicsTabType.all.index,
+    defaultValue: DynamicsTabType.video.index,
   );
 
   static bool get showDynInteraction =>

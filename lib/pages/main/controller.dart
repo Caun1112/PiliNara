@@ -299,10 +299,15 @@ class MainController extends GetxController
         checkDefaultSearch();
         checkUnread();
       } else if (currentNav == NavigationBarType.dynamics) {
+        dynamicController.selectDefaultTab();
         setDynCount();
       }
     } else {
       int now = DateTime.now().millisecondsSinceEpoch;
+      if (currentNav == NavigationBarType.dynamics &&
+          dynamicController.selectDefaultTab()) {
+        return;
+      }
       if (now - _lastSelectTime < 500) {
         EasyThrottle.throttle(
           'topOrRefresh',

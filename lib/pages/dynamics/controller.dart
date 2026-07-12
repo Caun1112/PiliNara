@@ -62,6 +62,18 @@ class DynamicsController extends GetxController
     queryFollowUp();
   }
 
+  bool selectDefaultTab() {
+    final index = Pref.defaultDynamicTypeIndex;
+    if (index < 0 || index >= tabController.length) {
+      return false;
+    }
+    if (tabController.index == index) {
+      return false;
+    }
+    tabController.index = index;
+    return true;
+  }
+
   void onLoadMoreUp() {
     if (_showAllUp) {
       queryAllUp();

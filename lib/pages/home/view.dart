@@ -69,11 +69,8 @@ class _HomePageState extends CommonPageState<HomePage>
     } else {
       tabBar = const SizedBox(height: 6);
     }
-    return Column(
+    final child = Column(
       children: [
-        if (!_mainController.useSideBar &&
-            MediaQuery.sizeOf(context).isPortrait)
-          customAppBar(theme),
         tabBar,
         Expanded(
           child: onBuild(
@@ -85,9 +82,35 @@ class _HomePageState extends CommonPageState<HomePage>
         ),
       ],
     );
+    if (!_mainController.useBottomNav ||
+        !MediaQuery.sizeOf(context).isPortrait) {
+      return child;
+    }
+    return Stack(
+      children: [
+        child,
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: bottomSearchOffset(context),
+          child: customAppBar(theme, respectHideTopBar: false),
+        ),
+      ],
+    );
   }
 
-  Widget customAppBar(ThemeData theme) {
+  double bottomSearchOffset(BuildContext context) {
+    final bottom = MediaQuery.viewPaddingOf(context).bottom;
+    if (_mainController.floatingNavBar) {
+      return 64 + Style.topBarHeight + 16 + bottom;
+    }
+    if (_mainController.enableMYBar) {
+      return 80 + Style.topBarHeight + 8 + bottom;
+    }
+    return kBottomNavigationBarHeight + Style.topBarHeight + 8 + bottom;
+  }
+
+  Widget customAppBar(ThemeData theme, {bool respectHideTopBar = true}) {
     const padding = EdgeInsets.fromLTRB(14, 6, 14, 0);
     final child = Row(
       children: [
@@ -98,7 +121,7 @@ class _HomePageState extends CommonPageState<HomePage>
         userAvatar(theme: theme, mainController: _mainController),
       ],
     );
-    if (_homeController.hideTopBar) {
+    if (respectHideTopBar && _homeController.hideTopBar) {
       if (_mainController.barOffset case final barOffset?) {
         return Obx(
           () {
