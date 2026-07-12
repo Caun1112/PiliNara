@@ -1,5 +1,6 @@
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/custom_height_widget.dart';
+import 'package:PiliPlus/common/widgets/floating_navigation_bar.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/scroll_physics.dart';
 import 'package:PiliPlus/pages/common/common_page.dart';
@@ -112,7 +113,11 @@ class _HomePageState extends CommonPageState<HomePage>
   }
 
   Widget bottomSearchBar(ThemeData theme) {
-    final child = customAppBar(theme, respectHideTopBar: false);
+    final child = customAppBar(
+      theme,
+      respectHideTopBar: false,
+      matchFloatingNavBarWidth: _mainController.floatingNavBar,
+    );
     if (_mainController.hideBottomBar) {
       if (_mainController.barOffset case final barOffset?) {
         return Obx(
@@ -156,9 +161,13 @@ class _HomePageState extends CommonPageState<HomePage>
     return child;
   }
 
-  Widget customAppBar(ThemeData theme, {bool respectHideTopBar = true}) {
+  Widget customAppBar(
+    ThemeData theme, {
+    bool respectHideTopBar = true,
+    bool matchFloatingNavBarWidth = false,
+  }) {
     const padding = EdgeInsets.fromLTRB(14, 6, 14, 0);
-    final child = Row(
+    Widget child = Row(
       children: [
         searchBar(theme),
         const SizedBox(width: 4),
@@ -167,6 +176,16 @@ class _HomePageState extends CommonPageState<HomePage>
         userAvatar(theme: theme, mainController: _mainController),
       ],
     );
+    if (matchFloatingNavBarWidth) {
+      child = Center(
+        child: SizedBox(
+          width:
+              _mainController.navigationBars.length *
+              kFloatingNavigationDestinationWidth,
+          child: child,
+        ),
+      );
+    }
     if (respectHideTopBar && _homeController.hideTopBar) {
       if (_mainController.barOffset case final barOffset?) {
         return Obx(

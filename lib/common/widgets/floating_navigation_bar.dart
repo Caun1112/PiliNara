@@ -9,7 +9,7 @@ const double _kMaxLabelTextScaleFactor = 1.3;
 
 const _kNavigationHeight = 64.0;
 const _kIndicatorHeight = _kNavigationHeight - 2 * _kIndicatorPaddingInt;
-const _kIndicatorWidth = 86.0;
+const kFloatingNavigationDestinationWidth = 86.0;
 const _kIndicatorPaddingInt = 4.0;
 const _kIndicatorPadding = EdgeInsets.all(_kIndicatorPaddingInt);
 const _kBorderRadius = BorderRadius.all(.circular(_kNavigationHeight / 2));
@@ -84,7 +84,7 @@ class FloatingNavigationBar extends StatelessWidget {
         ),
         child: SizedBox(
           height: _kNavigationHeight,
-          width: destinations.length * _kIndicatorWidth,
+          width: destinations.length * kFloatingNavigationDestinationWidth,
           child: DecoratedBox(
             decoration: ShapeDecoration(
               color: ElevationOverlay.applySurfaceTint(
@@ -368,7 +368,7 @@ class NavigationIndicator extends StatelessWidget {
     super.key,
     required this.animation,
     this.color,
-    this.width = _kIndicatorWidth,
+    this.width = kFloatingNavigationDestinationWidth,
     this.height = _kIndicatorHeight,
   });
 
@@ -417,7 +417,7 @@ class NavigationIndicator extends StatelessWidget {
                     color: color ?? Theme.of(context).colorScheme.secondary,
                   ),
                   child: const SizedBox(
-                    width: _kIndicatorWidth,
+                    width: kFloatingNavigationDestinationWidth,
                     height: _kIndicatorHeight,
                   ),
                 ),
