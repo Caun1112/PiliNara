@@ -585,7 +585,7 @@ class _UgcIntroPanelState extends State<UgcIntroPanel> {
               shareAfterDownload: true,
             ),
             semanticsLabel: '离线缓存并分享导出',
-            text: '',
+            text: '下载',
           ),
           ActionItem(
             icon: const Icon(FontAwesomeIcons.shareFromSquare),
