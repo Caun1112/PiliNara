@@ -93,21 +93,67 @@ class _HomePageState extends CommonPageState<HomePage>
           left: 0,
           right: 0,
           bottom: bottomSearchOffset(context),
-          child: customAppBar(theme, respectHideTopBar: false),
+          child: bottomSearchBar(theme),
         ),
       ],
     );
   }
 
   double bottomSearchOffset(BuildContext context) {
+    const searchLift = Style.topBarHeight - 8;
     final bottom = MediaQuery.viewPaddingOf(context).bottom;
     if (_mainController.floatingNavBar) {
-      return 64 + Style.topBarHeight + 16 + bottom;
+      return 64 + searchLift + 8 + bottom;
     }
     if (_mainController.enableMYBar) {
-      return 80 + Style.topBarHeight + 8 + bottom;
+      return 80 + searchLift + 8 + bottom;
     }
-    return kBottomNavigationBarHeight + Style.topBarHeight + 8 + bottom;
+    return kBottomNavigationBarHeight + searchLift + 8 + bottom;
+  }
+
+  Widget bottomSearchBar(ThemeData theme) {
+    final child = customAppBar(theme, respectHideTopBar: false);
+    if (_mainController.hideBottomBar) {
+      if (_mainController.barOffset case final barOffset?) {
+        return Obx(
+          () {
+            final progress = (barOffset.value / Style.topBarHeight).clamp(
+              0.0,
+              1.0,
+            );
+            return IgnorePointer(
+              ignoring: progress >= 1,
+              child: Opacity(
+                opacity: 1 - progress,
+                child: FractionalTranslation(
+                  translation: Offset(0.0, progress * 1.4),
+                  child: child,
+                ),
+              ),
+            );
+          },
+        );
+      }
+      if (_mainController.showBottomBar case final showBottomBar?) {
+        return Obx(
+          () => IgnorePointer(
+            ignoring: !showBottomBar.value,
+            child: AnimatedSlide(
+              curve: Curves.easeInOutCubicEmphasized,
+              duration: const Duration(milliseconds: 500),
+              offset: Offset(0, showBottomBar.value ? 0 : 1.4),
+              child: AnimatedOpacity(
+                curve: Curves.easeInOutCubicEmphasized,
+                duration: const Duration(milliseconds: 300),
+                opacity: showBottomBar.value ? 1 : 0,
+                child: child,
+              ),
+            ),
+          ),
+        );
+      }
+    }
+    return child;
   }
 
   Widget customAppBar(ThemeData theme, {bool respectHideTopBar = true}) {
@@ -168,7 +214,7 @@ class _HomePageState extends CommonPageState<HomePage>
         height: 44,
         child: Material(
           borderRadius: borderRadius,
-          color: theme.colorScheme.onSecondaryContainer.withValues(alpha: 0.05),
+          color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.92),
           child: InkWell(
             borderRadius: borderRadius,
             splashColor: theme.colorScheme.primaryContainer.withValues(
