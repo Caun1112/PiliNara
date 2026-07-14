@@ -12,10 +12,7 @@ import 'package:PiliPlus/pages/home/controller.dart';
 import 'package:PiliPlus/pages/mine/view.dart';
 import 'package:PiliPlus/services/account_service.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
-import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
-import 'package:PiliPlus/utils/storage.dart';
-import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/update.dart';
 import 'package:collection/collection.dart';
@@ -67,6 +64,12 @@ class MainController extends GetxController
   late bool isPlaying = false;
 
   static const _period = 5 * 60 * 1000;
+  static const _fixedNavigationBars = [
+    NavigationBarType.home,
+    NavigationBarType.search,
+    NavigationBarType.dynamics,
+    NavigationBarType.mine,
+  ];
   late int _lastSelectTime = 0;
 
   @override
@@ -221,19 +224,10 @@ class MainController extends GetxController
   }
 
   void setNavBarConfig() {
-    List<int>? navBarSort =
-        (GStorage.setting.get(SettingBoxKey.navBarSort) as List?)?.fromCast();
-    late final List<NavigationBarType> navigationBars;
-    if (navBarSort == null || navBarSort.isEmpty) {
-      navigationBars = NavigationBarType.values;
-    } else {
-      navigationBars = navBarSort
-          .map((i) => NavigationBarType.values[i])
-          .toList();
-    }
-    this.navigationBars = navigationBars;
+    navigationBars = _fixedNavigationBars;
     final defPage = Pref.defaultHomePage;
-    selectedIndex.value = navigationBars.indexOf(defPage);
+    final index = navigationBars.indexOf(defPage);
+    selectedIndex.value = index == -1 ? 0 : index;
   }
 
   void checkDefaultSearch([bool shouldCheck = false]) {

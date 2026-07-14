@@ -37,6 +37,7 @@ class FloatingNavigationBar extends StatelessWidget {
     this.labelTextStyle,
     this.labelPadding,
     this.bottomPadding = 8.0,
+    this.alignment = Alignment.bottomCenter,
   }) : assert(destinations.length >= 2),
        assert(0 <= selectedIndex && selectedIndex < destinations.length);
 
@@ -55,6 +56,7 @@ class FloatingNavigationBar extends StatelessWidget {
   final WidgetStateProperty<TextStyle?>? labelTextStyle;
   final EdgeInsetsGeometry? labelPadding;
   final double bottomPadding;
+  final AlignmentGeometry alignment;
 
   VoidCallback _handleTap(int index) {
     return onDestinationSelected != null
@@ -75,6 +77,7 @@ class FloatingNavigationBar extends StatelessWidget {
     final padding = MediaQuery.viewPaddingOf(context);
 
     return UnconstrainedBox(
+      alignment: alignment,
       child: Padding(
         padding: .fromLTRB(
           padding.left,

@@ -2,6 +2,7 @@ import 'package:PiliPlus/models/common/enum_with_label.dart';
 import 'package:PiliPlus/pages/dynamics/view.dart';
 import 'package:PiliPlus/pages/home/view.dart';
 import 'package:PiliPlus/pages/mine/view.dart';
+import 'package:PiliPlus/pages/search/view.dart';
 import 'package:flutter/material.dart';
 
 enum NavigationBarType implements EnumWithLabel {
@@ -22,6 +23,12 @@ enum NavigationBarType implements EnumWithLabel {
     Icon(Icons.person_outline, size: 24),
     Icon(Icons.person, size: 24),
     MinePage(),
+  ),
+  search(
+    '搜索',
+    Icon(Icons.search_outlined, size: 24),
+    Icon(Icons.search, size: 24),
+    SearchPage(autofocus: false),
   ),
   ;
 

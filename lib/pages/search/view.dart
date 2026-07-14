@@ -18,7 +18,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 class SearchPage extends StatefulWidget {
-  const SearchPage({super.key});
+  const SearchPage({super.key, this.autofocus = true});
+
+  final bool autofocus;
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -117,7 +119,7 @@ class _SearchPageState extends State<SearchPage> {
       const SizedBox(width: 10),
     ],
     title: TextField(
-      autofocus: true,
+      autofocus: widget.autofocus,
       focusNode: _searchController.searchFocusNode,
       controller: _searchController.controller,
       textInputAction: TextInputAction.search,

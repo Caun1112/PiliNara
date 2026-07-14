@@ -197,7 +197,6 @@ class _MediaPageState extends CommonPageState<MinePage>
             onPressed: () => Get.toNamed('/search'),
             icon: const Icon(Icons.search),
           ),
-          msgBadge(_mainController),
         ],
         if (GStorage.reply != null)
           IconButton(
@@ -208,6 +207,7 @@ class _MediaPageState extends CommonPageState<MinePage>
             onPressed: () => Get.toNamed('/myReply'),
             icon: const Icon(Icons.message_outlined),
           ),
+        msgBadge(_mainController),
         Obx(
           () {
             final anonymity = MineController.anonymity.value;
