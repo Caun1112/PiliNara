@@ -1841,6 +1841,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     } else {
       child = childWhenDisabledAlmostSquare;
     }
+    child = _withFloatingBackButton(child);
     if (videoDetailController.plPlayerController.keyboardControl) {
       child = PlayerFocus(
         plPlayerController: videoDetailController.plPlayerController,
@@ -1860,6 +1861,29 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
     return videoDetailController.plPlayerController.darkVideoPage
         ? Theme(data: themeData, child: child)
         : child;
+  }
+
+  Widget _withFloatingBackButton(Widget child) {
+    return Obx(() {
+      final shouldShow =
+          !videoDetailController.plPlayerController.isPipMode && !isFullScreen;
+      return Stack(
+        children: [
+          child,
+          if (shouldShow)
+            Positioned(
+              right: padding.right + kFloatingActionButtonMargin,
+              bottom: padding.bottom + kFloatingActionButtonMargin + 72,
+              child: FloatingActionButton(
+                heroTag: null,
+                tooltip: '返回',
+                onPressed: Get.back,
+                child: const Icon(Icons.arrow_back_rounded),
+              ),
+            ),
+        ],
+      );
+    });
   }
 
   Widget buildTabBar({
