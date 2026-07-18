@@ -38,6 +38,7 @@ class FloatingNavigationBar extends StatelessWidget {
     this.labelPadding,
     this.bottomPadding = 8.0,
     this.alignment = Alignment.bottomCenter,
+    this.width,
   }) : assert(destinations.length >= 2),
        assert(0 <= selectedIndex && selectedIndex < destinations.length);
 
@@ -57,6 +58,7 @@ class FloatingNavigationBar extends StatelessWidget {
   final EdgeInsetsGeometry? labelPadding;
   final double bottomPadding;
   final AlignmentGeometry alignment;
+  final double? width;
 
   VoidCallback _handleTap(int index) {
     return onDestinationSelected != null
@@ -87,7 +89,7 @@ class FloatingNavigationBar extends StatelessWidget {
         ),
         child: SizedBox(
           height: _kNavigationHeight,
-          width: destinations.length * kFloatingNavigationDestinationWidth,
+          width: width ?? destinations.length * kFloatingNavigationDestinationWidth,
           child: DecoratedBox(
             decoration: ShapeDecoration(
               color: ElevationOverlay.applySurfaceTint(

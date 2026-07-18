@@ -291,6 +291,7 @@ class _MainAppState extends PopScopeState<MainApp>
         bottomNav = Obx(
           () => FloatingNavigationBar(
             alignment: Alignment.bottomRight,
+            width: MediaQuery.sizeOf(context).width * 0.5,
             onDestinationSelected: _mainController.setIndex,
             selectedIndex: _mainController.selectedIndex.value,
             destinations: _mainController.navigationBars
