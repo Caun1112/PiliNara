@@ -72,6 +72,7 @@ class ReplyItemGrpc extends StatelessWidget {
     this.onToggleTop,
     this.jumpToDialogue,
     this.showFullImages,
+    this.showReplies = false,
   });
   final ReplyInfo replyItem;
   final int replyLevel;
@@ -87,6 +88,7 @@ class ReplyItemGrpc extends StatelessWidget {
   final ValueChanged<ReplyInfo>? onToggleTop;
   final VoidCallback? jumpToDialogue;
   final bool? showFullImages;
+  final bool showReplies;
 
   static final _voteRegExp = RegExp(r"^\{vote:\d+?\}$");
   static final _timeRegExp = RegExp(r'^(?:\d+[:：])?\d+[:：]\d+$');
@@ -417,10 +419,16 @@ class ReplyItemGrpc extends StatelessWidget {
           const SizedBox(height: 4),
           buttonAction(context, theme, replyControl),
         ],
-        if (replyLevel == 1 && replyItem.count > Int64.ZERO) ...[
+        if ((replyLevel == 1 || showReplies) &&
+            replyItem.count > Int64.ZERO) ...[
           Padding(
             padding: const EdgeInsets.only(top: 5, bottom: 12),
-            child: replyItemRow(context, theme, replyItem.replies),
+            child: replyItemRow(
+              context,
+              theme,
+              replyItem.replies,
+              showAll: showReplies,
+            ),
           ),
         ],
       ],
@@ -586,9 +594,11 @@ class ReplyItemGrpc extends StatelessWidget {
   Widget replyItemRow(
     BuildContext context,
     ThemeData theme,
-    List<ReplyInfo> replies,
-  ) {
-    final extraRow = replies.length < replyItem.count.toInt();
+    List<ReplyInfo> replies, {
+    bool showAll = false,
+  }) {
+    if (showAll && replies.isEmpty) return const SizedBox.shrink();
+    final extraRow = !showAll && replies.length < replyItem.count.toInt();
     late final length = replies.length + (extraRow ? 1 : 0);
     return Padding(
       padding: const EdgeInsets.only(left: 42, right: 4),
@@ -646,8 +656,10 @@ class ReplyItemGrpc extends StatelessWidget {
                         ),
                         height: 1.6,
                       ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
+                      overflow: showAll
+                          ? TextOverflow.visible
+                          : TextOverflow.ellipsis,
+                      maxLines: showAll ? null : 2,
                       TextSpan(
                         children: [
                           TextSpan(
@@ -696,6 +708,17 @@ class ReplyItemGrpc extends StatelessWidget {
                   ),
                 );
               }),
+            if (showAll && replies.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 5, 8, 8),
+                child: Text(
+                  '共${replyItem.count}条回复',
+                  style: TextStyle(
+                    fontSize: theme.textTheme.labelMedium!.fontSize,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
             if (extraRow)
               InkWell(
                 onTap: () => replyReply?.call(replyItem, null),

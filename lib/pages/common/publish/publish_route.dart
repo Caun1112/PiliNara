@@ -1,8 +1,10 @@
+import 'package:PiliPlus/common/widgets/global_back_button.dart';
 import 'package:flutter/material.dart';
 
-class PublishRoute<T> extends PopupRoute<T> {
+class PublishRoute<T> extends PopupRoute<T> implements GlobalBackButtonRoute {
   PublishRoute({
     required this.pageBuilder,
+    this.showGlobalBackButton = false,
     this._barrierDismissible = true,
     this._barrierLabel,
     this._barrierColor = const Color(0x80000000),
@@ -12,6 +14,9 @@ class PublishRoute<T> extends PopupRoute<T> {
   });
 
   final RoutePageBuilder pageBuilder;
+
+  @override
+  final bool showGlobalBackButton;
 
   @override
   bool get barrierDismissible => _barrierDismissible;

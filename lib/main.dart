@@ -4,6 +4,7 @@ import 'package:PiliPlus/build_config.dart';
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/widgets/back_detector.dart';
 import 'package:PiliPlus/common/widgets/custom_toast.dart';
+import 'package:PiliPlus/common/widgets/global_back_button.dart';
 import 'package:PiliPlus/common/widgets/route_aware_mixin.dart';
 import 'package:PiliPlus/common/widgets/scale_app.dart';
 import 'package:PiliPlus/common/widgets/scroll_behavior.dart';
@@ -222,6 +223,7 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   static ColorScheme? _light, _dark;
+  static final _backButtonObserver = GlobalBackButtonObserver();
 
   static void _onBack() {
     if (SmartDialog.checkExist()) {
@@ -239,7 +241,7 @@ class MyApp extends StatelessWidget {
 
     final navigator = Get.key.currentState;
     if (navigator?.canPop() ?? false) {
-      navigator!.pop();
+      navigator!.maybePop();
     }
   }
 
@@ -294,6 +296,7 @@ class MyApp extends StatelessWidget {
       navigatorObservers: [
         routeObserver,
         FlutterSmartDialog.observer,
+        _backButtonObserver,
       ],
       scrollBehavior: PlatformUtils.isDesktop
           ? const CustomScrollBehavior(desktopDragDevices)
@@ -358,12 +361,21 @@ class MyApp extends StatelessWidget {
       );
     }
     if (PlatformUtils.isDesktop) {
+      child = GlobalBackButtonOverlay(
+        observer: _backButtonObserver,
+        onBack: _onBack,
+        child: child,
+      );
       return BackDetector(
         onBack: _onBack,
         child: child,
       );
     }
-    return child;
+    return GlobalBackButtonOverlay(
+      observer: _backButtonObserver,
+      onBack: _onBack,
+      child: child,
+    );
   }
 
   /// from [DynamicColorBuilderState.initPlatformState]

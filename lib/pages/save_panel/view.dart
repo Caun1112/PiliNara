@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:math' show min;
 
 import 'package:PiliPlus/common/assets.dart';
@@ -6,7 +7,9 @@ import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/grpc/bilibili/main/community/reply/v1.pb.dart'
-    show ReplyInfo;
+    show Mode, ReplyInfo;
+import 'package:PiliPlus/grpc/reply.dart';
+import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/video/video_type.dart';
 import 'package:PiliPlus/models/dynamics/result.dart';
 import 'package:PiliPlus/pages/common/publish/publish_route.dart';
@@ -30,6 +33,7 @@ import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:pretty_qr_code/pretty_qr_code.dart';
+import 'package:protobuf/protobuf.dart';
 
 class SavePanel extends StatefulWidget {
   const SavePanel({
@@ -58,6 +62,7 @@ class SavePanel extends StatefulWidget {
             child: child,
           );
         },
+        showGlobalBackButton: true,
         settings: RouteSettings(arguments: Get.arguments),
       ),
     );
@@ -71,7 +76,8 @@ class _SavePanelState extends State<SavePanel> {
   bool showFullImages = false;
 
   // item
-  Object get _item => widget.item;
+  late Object _item;
+  bool _isLoadingReplies = false;
   late String viewType = '查看';
   late String itemType = '内容';
 
@@ -88,6 +94,7 @@ class _SavePanelState extends State<SavePanel> {
   @override
   void initState() {
     super.initState();
+    _item = widget.item;
     if (_item case final ReplyInfo reply) {
       itemType = '评论';
       final currentRoute = Get.currentRoute;
@@ -217,10 +224,71 @@ class _SavePanelState extends State<SavePanel> {
       }
 
       if (kDebugMode) debugPrint(uri);
+      if (reply.hasRoot() || reply.replies.length < reply.count.toInt()) {
+        _isLoadingReplies = true;
+        unawaited(_loadCompleteReply(reply));
+      }
     } else if (_item case final DynamicItemModel i) {
       uri = parseDyn(i);
 
       if (kDebugMode) debugPrint(uri);
+    }
+  }
+
+  Future<void> _loadCompleteReply(ReplyInfo reply) async {
+    final rootId = reply.hasRoot() ? reply.root.toInt() : reply.id.toInt();
+    final replies = <int, ReplyInfo>{};
+    final seenOffsets = <String>{};
+    ReplyInfo? root;
+    String? offset;
+    bool loadFailed = false;
+
+    try {
+      while (true) {
+        final result = await ReplyGrpc.detailList(
+          type: reply.type.toInt(),
+          oid: reply.oid.toInt(),
+          root: rootId,
+          rpid: 0,
+          mode: Mode.MAIN_LIST_TIME,
+          offset: offset,
+        );
+        if (result case Success(:final response)) {
+          root ??= response.root;
+          for (final item in response.root.replies) {
+            replies[item.id.toInt()] = item;
+          }
+
+          final nextOffset = response.paginationReply.nextOffset;
+          if (response.cursor.isEnd ||
+              nextOffset.isEmpty ||
+              !seenOffsets.add(nextOffset)) {
+            break;
+          }
+          offset = nextOffset;
+        } else {
+          loadFailed = true;
+          break;
+        }
+      }
+    } catch (e) {
+      loadFailed = true;
+      if (kDebugMode) debugPrint('load complete reply: $e');
+    }
+
+    if (!mounted) return;
+    setState(() {
+      if (root case final root?) {
+        final fullReply = root.deepCopy();
+        fullReply.replies
+          ..clear()
+          ..addAll(replies.values);
+        _item = fullReply;
+      }
+      _isLoadingReplies = false;
+    });
+    if (loadFailed) {
+      SmartDialog.showToast('完整回复加载失败，已展示当前加载内容');
     }
   }
 
@@ -287,6 +355,10 @@ class _SavePanelState extends State<SavePanel> {
   }
 
   Future<void> _onPicAction([_PicAction action = _PicAction.save]) async {
+    if (_isLoadingReplies) {
+      SmartDialog.showToast('正在加载完整回复');
+      return;
+    }
     if (action == _PicAction.save &&
         PlatformUtils.isMobile &&
         !await ImageUtils.checkPermissionDependOnSdkInt()) {
@@ -358,25 +430,40 @@ class _SavePanelState extends State<SavePanel> {
                     mainAxisSize: .min,
                     crossAxisAlignment: .start,
                     children: [
-                      switch (_item) {
-                        ReplyInfo reply => IgnorePointer(
-                          child: ReplyItemGrpc(
-                            replyItem: reply,
-                            replyLevel: 0,
-                            needDivider: false,
-                            upMid: widget.upMid,
-                            showFullImages: showFullImages,
-                          ),
-                        ),
-                        DynamicItemModel dyn => IgnorePointer(
-                          child: DynamicPanel(
-                            item: dyn,
-                            isDetail: true,
-                            isSave: true,
-                          ),
-                        ),
-                        _ => throw UnsupportedError(_item.toString()),
-                      },
+                      _isLoadingReplies
+                          ? const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 48),
+                              child: Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  spacing: 12,
+                                  children: [
+                                    CircularProgressIndicator(),
+                                    Text('正在加载完整回复'),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : switch (_item) {
+                              ReplyInfo reply => IgnorePointer(
+                                child: ReplyItemGrpc(
+                                  replyItem: reply,
+                                  replyLevel: 0,
+                                  needDivider: false,
+                                  upMid: widget.upMid,
+                                  showFullImages: showFullImages,
+                                  showReplies: true,
+                                ),
+                              ),
+                              DynamicItemModel dyn => IgnorePointer(
+                                child: DynamicPanel(
+                                  item: dyn,
+                                  isDetail: true,
+                                  isSave: true,
+                                ),
+                              ),
+                              _ => throw UnsupportedError(_item.toString()),
+                            },
                       if (cover?.isNotEmpty == true &&
                           title?.isNotEmpty == true)
                         Container(

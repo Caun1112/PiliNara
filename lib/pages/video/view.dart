@@ -1873,7 +1873,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           if (shouldShow)
             Positioned(
               right: padding.right + kFloatingActionButtonMargin,
-              bottom: padding.bottom + kFloatingActionButtonMargin + 72,
+              bottom: padding.bottom + kFloatingActionButtonMargin + 172,
               child: FloatingActionButton(
                 heroTag: null,
                 tooltip: '返回',
