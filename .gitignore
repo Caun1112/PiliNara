@@ -162,5 +162,7 @@ CLAUDE.md
 
 .claude
 test*
+!test/
+!test/**/*.dart
 /pubspec_overrides.yaml
 .mindfs

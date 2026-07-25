@@ -56,6 +56,7 @@ class SavePanel extends StatefulWidget {
         pageBuilder: (context, animation, secondaryAnimation) {
           return SavePanel(upMid: upMid, item: item);
         },
+        barrierDismissible: false,
         transitionDuration: const Duration(milliseconds: 255),
         transitionBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
@@ -454,7 +455,8 @@ class _SavePanelState extends State<SavePanel> {
       alignment: .center,
       children: [
         SingleChildScrollView(
-          hitTestBehavior: .deferToChild,
+          // 惯性滚动时仍接收点击，以便暂停滚动并阻止事件穿透路由遮罩。
+          hitTestBehavior: .opaque,
           padding: .only(
             top: 12 + padding.top,
             bottom: 80 + padding.bottom,

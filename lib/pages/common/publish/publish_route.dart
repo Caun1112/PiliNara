@@ -5,7 +5,7 @@ class PublishRoute<T> extends PopupRoute<T> implements GlobalBackButtonRoute {
   PublishRoute({
     required this.pageBuilder,
     this.showGlobalBackButton = false,
-    this._barrierDismissible = true,
+    this.barrierDismissible = true,
     this._barrierLabel,
     this._barrierColor = const Color(0x80000000),
     this._transitionDuration = const Duration(milliseconds: 500),
@@ -19,8 +19,7 @@ class PublishRoute<T> extends PopupRoute<T> implements GlobalBackButtonRoute {
   final bool showGlobalBackButton;
 
   @override
-  bool get barrierDismissible => _barrierDismissible;
-  final bool _barrierDismissible;
+  final bool barrierDismissible;
 
   @override
   String? get barrierLabel => _barrierLabel;
