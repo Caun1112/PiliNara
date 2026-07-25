@@ -166,3 +166,6 @@ test*
 !test/**/*.dart
 /pubspec_overrides.yaml
 .mindfs
+
+# 本地生成的未签名 iOS 安装包
+/*.ipa

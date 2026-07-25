@@ -14,7 +14,7 @@ import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/image_grid/image_grid_view.dart';
 import 'package:PiliPlus/common/widgets/pendant_avatar.dart';
 import 'package:PiliPlus/grpc/bilibili/main/community/reply/v1.pb.dart'
-    show ReplyInfo, ReplyControl, Content, Url;
+    show Content, Picture, ReplyControl, ReplyInfo, Url;
 import 'package:PiliPlus/grpc/reply.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/reply.dart';
@@ -364,73 +364,11 @@ class ReplyItemGrpc extends StatelessWidget {
           ),
         ),
         if (replyItem.content.pictures.isNotEmpty) ...[
-          Padding(
+          _buildPictures(
+            context,
+            replyItem.content.pictures,
             padding: padding,
-            child: showFullImages == true
-                ? LayoutBuilder(
-                    builder: (context, constraints) {
-                      final width = constraints.maxWidth;
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Column(
-                          spacing: 8,
-                          children: replyItem.content.pictures.map((item) {
-                            final sourceWidth = item.imgWidth > 0
-                                ? item.imgWidth
-                                : 1;
-                            final sourceHeight = item.imgHeight > 0
-                                ? item.imgHeight
-                                : 1;
-                            return NetworkImgLayer(
-                              src: item.imgSrc,
-                              width: width,
-                              height: width * sourceHeight / sourceWidth,
-                              quality: 100,
-                              fit: BoxFit.contain,
-                            );
-                          }).toList(),
-                        ),
-                      );
-                    },
-                  )
-                : showFullImages == false
-                ? LayoutBuilder(
-                    builder: (context, constraints) {
-                      final width = (constraints.maxWidth - 10) / 3;
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Wrap(
-                          spacing: 5,
-                          runSpacing: 5,
-                          children: replyItem.content.pictures
-                              .map(
-                                (item) => NetworkImgLayer(
-                                  src: item.imgSrc,
-                                  width: width,
-                                  height: width,
-                                  quality: 80,
-                                ),
-                              )
-                              .toList(),
-                        ),
-                      );
-                    },
-                  )
-                : IgnorePointer(
-                    ignoring: selectionMode,
-                    child: ImageGridView(
-                      picArr: replyItem.content.pictures
-                          .map(
-                            (item) => ImageModel(
-                              width: item.imgWidth,
-                              height: item.imgHeight,
-                              url: item.imgSrc,
-                            ),
-                          )
-                          .toList(),
-                      onViewImage: onViewImage,
-                    ),
-                  ),
+            selectionMode: selectionMode,
           ),
           const SizedBox(height: 4),
         ],
@@ -455,6 +393,80 @@ class ReplyItemGrpc extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildPictures(
+    BuildContext context,
+    List<Picture> pictures, {
+    required EdgeInsets padding,
+    required bool selectionMode,
+  }) {
+    return Padding(
+      padding: padding,
+      child: showFullImages == true
+          ? LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Column(
+                    spacing: 8,
+                    children: pictures.map((item) {
+                      final sourceWidth = item.imgWidth > 0 ? item.imgWidth : 1;
+                      final sourceHeight = item.imgHeight > 0
+                          ? item.imgHeight
+                          : 1;
+                      return NetworkImgLayer(
+                        src: item.imgSrc,
+                        width: width,
+                        height: width * sourceHeight / sourceWidth,
+                        quality: 100,
+                        fit: BoxFit.contain,
+                      );
+                    }).toList(),
+                  ),
+                );
+              },
+            )
+          : showFullImages == false
+          ? LayoutBuilder(
+              builder: (context, constraints) {
+                final width = (constraints.maxWidth - 10) / 3;
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Wrap(
+                    spacing: 5,
+                    runSpacing: 5,
+                    children: pictures
+                        .map(
+                          (item) => NetworkImgLayer(
+                            src: item.imgSrc,
+                            width: width,
+                            height: width,
+                            quality: 80,
+                          ),
+                        )
+                        .toList(),
+                  ),
+                );
+              },
+            )
+          : IgnorePointer(
+              ignoring: selectionMode,
+              child: ImageGridView(
+                picArr: pictures
+                    .map(
+                      (item) => ImageModel(
+                        width: item.imgWidth,
+                        height: item.imgHeight,
+                        url: item.imgSrc,
+                      ),
+                    )
+                    .toList(),
+                onViewImage: onViewImage,
+              ),
+            ),
     );
   }
 
@@ -734,6 +746,20 @@ class ReplyItemGrpc extends StatelessWidget {
                     ),
                   ),
                 );
+                if (showAll && childReply.content.pictures.isNotEmpty) {
+                  content = Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      content,
+                      _buildPictures(
+                        context,
+                        childReply.content.pictures,
+                        padding: padding,
+                        selectionMode: selectionMode,
+                      ),
+                    ],
+                  );
+                }
                 if (selectionMode && !selected) {
                   content = ColorFiltered(
                     colorFilter: const ColorFilter.matrix(<double>[
@@ -787,7 +813,7 @@ class ReplyItemGrpc extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(8, 5, 8, 8),
                 child: Text(
                   selectionMode
-                      ? '已选${replies.where((reply) => isReplySelected?.call(reply) ?? true).length}/${replies.length}条回复'
+                      ? '主评论保留 · 已选${replies.where((reply) => isReplySelected?.call(reply) ?? true).length}/${replies.length}条跟评'
                       : '共${replyItem.count}条回复',
                   style: TextStyle(
                     fontSize: theme.textTheme.labelMedium!.fontSize,

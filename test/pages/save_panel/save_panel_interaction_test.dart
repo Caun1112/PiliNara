@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/grpc/bilibili/main/community/reply/v1.pb.dart';
 import 'package:PiliPlus/pages/save_panel/view.dart';
 import 'package:PiliPlus/pages/video/reply/widgets/reply_item_grpc.dart';
@@ -59,7 +60,39 @@ void main() {
 
     expect(position.pixels, closeTo(heldOffset, 0.1));
     expect(find.byType(SavePanel), findsOneWidget);
-    expect(find.text('已选0/120条回复'), findsOneWidget);
+    expect(find.text('主评论保留 · 已选0/120条跟评'), findsOneWidget);
+  });
+
+  testWidgets('惯性滚动期间点击底部按钮区域只会暂停滚动', (tester) async {
+    await _openSavePanel(tester, _longReply());
+
+    final scrollViewFinder = find.byType(SingleChildScrollView);
+    final scrollableFinder = find.descendant(
+      of: scrollViewFinder,
+      matching: find.byType(Scrollable),
+    );
+    final position = tester.state<ScrollableState>(scrollableFinder).position;
+    final closeButtonCenter = tester.getCenter(find.byIcon(Icons.clear));
+
+    await tester.fling(scrollViewFinder, const Offset(0, -900), 8000);
+    await tester.pump(const Duration(milliseconds: 16));
+    final firstOffset = position.pixels;
+    await tester.pump(const Duration(milliseconds: 32));
+    expect(position.pixels, greaterThan(firstOffset));
+
+    final gesture = await tester.startGesture(closeButtonCenter);
+    await tester.pump(const Duration(milliseconds: 16));
+    final heldOffset = position.pixels;
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(position.pixels, closeTo(heldOffset, 0.1));
+    expect(find.byType(SavePanel), findsOneWidget);
+
+    await gesture.up();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byType(SavePanel), findsOneWidget);
+    expect(find.text('主评论保留 · 已选0/120条跟评'), findsOneWidget);
   });
 
   testWidgets('保存评论页不能通过点击遮罩退出', (tester) async {
@@ -75,7 +108,7 @@ void main() {
 
   testWidgets('保存评论静止时仍可选择跟评', (tester) async {
     await _openSavePanel(tester, _longReply());
-    expect(find.text('已选0/120条回复'), findsOneWidget);
+    expect(find.text('主评论保留 · 已选0/120条跟评'), findsOneWidget);
 
     final replyInkWells = find.descendant(
       of: find.byType(ReplyItemGrpc),
@@ -87,10 +120,29 @@ void main() {
         .whereType<InkWell>()
         .firstWhere((widget) => widget.onTap != null);
 
-    await tester.tap(find.byWidget(selectableReply));
+    final tapPosition = tester.getCenter(find.byWidget(selectableReply));
+    await tester.tapAt(tapPosition);
     await tester.pump();
 
-    expect(find.text('已选1/120条回复'), findsOneWidget);
+    expect(find.text('主评论保留 · 已选1/120条跟评'), findsOneWidget);
+
+    await tester.tapAt(tapPosition);
+    await tester.pump();
+
+    expect(find.text('主评论保留 · 已选0/120条跟评'), findsOneWidget);
+  });
+
+  testWidgets('图片跟评会显示在保存评论页中', (tester) async {
+    await _openSavePanel(tester, _replyWithPicture());
+
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is NetworkImgLayer &&
+            widget.src == 'https://example.invalid/child.png',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('保存评论页仍可通过关闭按钮退出', (tester) async {
@@ -100,6 +152,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(SavePanel), findsNothing);
+  });
+
+  test('超长截图会降低倍率或被安全阻止', () {
+    expect(calculateSavePanelPixelRatio(const Size(430, 932)), 3);
+    expect(
+      calculateSavePanelPixelRatio(const Size(430, 10000)),
+      closeTo(1.2, 0.001),
+    );
+    expect(calculateSavePanelPixelRatio(const Size(430, 20000)), isNull);
   });
 }
 
@@ -141,6 +202,35 @@ ReplyInfo _longReply() {
     replies: replies,
     member: Member(name: '根评论用户'),
     content: Content(message: '用于测试保存评论交互的根评论'),
+    replyControl: ReplyControl(),
+  );
+}
+
+ReplyInfo _replyWithPicture() {
+  final rootId = Int64(1);
+  final child = ReplyInfo(
+    id: Int64(2),
+    root: rootId,
+    parent: rootId,
+    member: Member(name: '图片用户'),
+    content: Content(
+      pictures: [
+        Picture(
+          imgSrc: 'https://example.invalid/child.png',
+          imgWidth: 100,
+          imgHeight: 100,
+        ),
+      ],
+    ),
+    replyControl: ReplyControl(),
+  );
+
+  return ReplyInfo(
+    id: rootId,
+    count: Int64(1),
+    replies: [child],
+    member: Member(name: '根评论用户'),
+    content: Content(message: '包含图片跟评的根评论'),
     replyControl: ReplyControl(),
   );
 }

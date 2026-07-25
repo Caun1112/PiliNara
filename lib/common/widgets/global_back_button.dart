@@ -65,7 +65,7 @@ class GlobalBackButtonOverlay extends StatelessWidget {
             child!,
             Positioned(
               right: padding.right + kFloatingActionButtonMargin,
-              bottom: padding.bottom + kFloatingActionButtonMargin + 200,
+              bottom: padding.bottom + kFloatingActionButtonMargin + 100,
               child: FloatingActionButton(
                 heroTag: 'global-back-button',
                 tooltip: '返回',

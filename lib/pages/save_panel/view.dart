@@ -1,5 +1,6 @@
 import 'dart:async' show unawaited;
-import 'dart:math' show min;
+import 'dart:math' show max, min, sqrt;
+import 'dart:typed_data' show Uint8List;
 
 import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/constants.dart';
@@ -27,7 +28,7 @@ import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:clipboard/clipboard.dart';
 import 'package:fixnum/fixnum.dart' show Int64;
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
@@ -35,6 +36,27 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:protobuf/protobuf.dart';
+
+const double _preferredCapturePixelRatio = 3;
+// 控制纹理尺寸和 RGBA 中间内存，避免超长评论触发 iOS 内存终止。
+const double _maxCapturePhysicalDimension = 12000;
+const double _maxCapturePhysicalPixels = 16 * 1024 * 1024;
+
+@visibleForTesting
+double? calculateSavePanelPixelRatio(Size logicalSize) {
+  if (logicalSize.isEmpty) return null;
+
+  final dimensionRatio =
+      _maxCapturePhysicalDimension / max(logicalSize.width, logicalSize.height);
+  final pixelCountRatio = sqrt(
+    _maxCapturePhysicalPixels / (logicalSize.width * logicalSize.height),
+  );
+  final safeRatio = min(
+    _preferredCapturePixelRatio,
+    min(dimensionRatio, pixelCountRatio),
+  );
+  return safeRatio >= 1 ? safeRatio : null;
+}
 
 class SavePanel extends StatefulWidget {
   const SavePanel({
@@ -74,15 +96,18 @@ class SavePanel extends StatefulWidget {
 class _SavePanelState extends State<SavePanel> {
   final boundaryKey = GlobalKey();
   final Set<int> _selectedReplyIds = <int>{};
+  late final ScrollController _scrollController;
 
   bool showBottom = false;
   bool showFullImages = false;
   bool _isCapturing = false;
   bool _isActionInProgress = false;
+  bool _isScrolling = false;
 
   // item
   late Object _item;
   bool _isLoadingReplies = false;
+  bool _replyLoadIncomplete = false;
   late String viewType = '查看';
   late String itemType = '内容';
 
@@ -99,6 +124,14 @@ class _SavePanelState extends State<SavePanel> {
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController(
+      onAttach: (position) {
+        position.isScrollingNotifier.addListener(_handleScrollActivity);
+      },
+      onDetach: (position) {
+        position.isScrollingNotifier.removeListener(_handleScrollActivity);
+      },
+    );
     _item = widget.item;
     if (_item case final ReplyInfo reply) {
       itemType = '评论';
@@ -242,7 +275,10 @@ class _SavePanelState extends State<SavePanel> {
 
   Future<void> _loadCompleteReply(ReplyInfo reply) async {
     final rootId = reply.hasRoot() ? reply.root.toInt() : reply.id.toInt();
-    final replies = <int, ReplyInfo>{};
+    final replies = <int, ReplyInfo>{
+      for (final item in reply.replies) item.id.toInt(): item,
+      if (reply.hasRoot()) reply.id.toInt(): reply,
+    };
     final seenOffsets = <String>{};
     ReplyInfo? root;
     String? offset;
@@ -258,6 +294,7 @@ class _SavePanelState extends State<SavePanel> {
           mode: Mode.MAIN_LIST_TIME,
           offset: offset,
         );
+        if (!mounted) return;
         if (result case Success(:final response)) {
           root ??= response.root;
           for (final item in response.root.replies) {
@@ -291,6 +328,7 @@ class _SavePanelState extends State<SavePanel> {
         _item = fullReply;
       }
       _isLoadingReplies = false;
+      _replyLoadIncomplete = loadFailed;
     });
     if (loadFailed) {
       SmartDialog.showToast('完整回复加载失败，已展示当前加载内容');
@@ -364,7 +402,7 @@ class _SavePanelState extends State<SavePanel> {
   }
 
   void _toggleReply(ReplyInfo reply) {
-    if (_isCapturing) return;
+    if (_isCapturing || _isActionInProgress) return;
     final id = reply.id.toInt();
     setState(() {
       if (!_selectedReplyIds.add(id)) {
@@ -388,7 +426,9 @@ class _SavePanelState extends State<SavePanel> {
       SmartDialog.showToast('正在加载完整回复');
       return;
     }
-    _isActionInProgress = true;
+    setState(() {
+      _isActionInProgress = true;
+    });
     ReplyInfo? originalReply;
     try {
       if (action == _PicAction.save &&
@@ -410,10 +450,23 @@ class _SavePanelState extends State<SavePanel> {
       final boundary =
           boundaryKey.currentContext!.findRenderObject()
               as RenderRepaintBoundary;
-      final image = await boundary.toImage(pixelRatio: 3);
-      final byteData = await image.toByteData(format: .png);
-      image.dispose();
-      final pngBytes = byteData!.buffer.asUint8List();
+      final pixelRatio = calculateSavePanelPixelRatio(boundary.size);
+      if (pixelRatio == null) {
+        SmartDialog.dismiss();
+        SmartDialog.showToast('内容过长，无法生成图片，请减少选中的评论或切换为集成展示');
+        return;
+      }
+      final image = await boundary.toImage(pixelRatio: pixelRatio);
+      late final Uint8List pngBytes;
+      try {
+        final byteData = await image.toByteData(format: .png);
+        if (byteData == null) {
+          throw StateError('图片编码失败');
+        }
+        pngBytes = byteData.buffer.asUint8List();
+      } finally {
+        image.dispose();
+      }
       final picName =
           "${Constants.appName}_${itemType}_${DateFormat('yyyyMMddHHmmss').format(DateTime.now())}";
       switch (action) {
@@ -433,15 +486,37 @@ class _SavePanelState extends State<SavePanel> {
     } catch (e) {
       if (kDebugMode) debugPrint('on save/share reply: $e');
       SmartDialog.dismiss();
+      SmartDialog.showToast('生成图片失败，请减少选中的评论后重试');
     } finally {
-      _isActionInProgress = false;
-      if (originalReply != null && mounted) {
+      if (mounted) {
         setState(() {
-          _item = originalReply!;
-          _isCapturing = false;
+          _isActionInProgress = false;
+          if (originalReply != null) {
+            _item = originalReply;
+            _isCapturing = false;
+          }
         });
+      } else {
+        _isActionInProgress = false;
       }
     }
+  }
+
+  void _handleScrollActivity() {
+    final isScrolling =
+        _scrollController.hasClients &&
+        _scrollController.position.isScrollingNotifier.value;
+    if (mounted && _isScrolling != isScrolling) {
+      setState(() {
+        _isScrolling = isScrolling;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -455,6 +530,7 @@ class _SavePanelState extends State<SavePanel> {
       alignment: .center,
       children: [
         SingleChildScrollView(
+          controller: _scrollController,
           // 惯性滚动时仍接收点击，以便暂停滚动并阻止事件穿透路由遮罩。
           hitTestBehavior: .opaque,
           padding: .only(
@@ -498,7 +574,7 @@ class _SavePanelState extends State<SavePanel> {
                             )
                           : switch (_item) {
                               ReplyInfo reply => IgnorePointer(
-                                ignoring: _isCapturing,
+                                ignoring: _isCapturing || _isActionInProgress,
                                 child: ReplyItemGrpc(
                                   replyItem: reply,
                                   replyLevel: 0,
@@ -521,6 +597,16 @@ class _SavePanelState extends State<SavePanel> {
                               ),
                               _ => throw UnsupportedError(_item.toString()),
                             },
+                      if (_replyLoadIncomplete)
+                        Padding(
+                          padding: const .fromLTRB(12, 0, 12, 12),
+                          child: Text(
+                            '完整回复加载不完整，已保留当前可用内容',
+                            style: TextStyle(
+                              color: theme.colorScheme.error,
+                            ),
+                          ),
+                        ),
                       if (cover?.isNotEmpty == true &&
                           title?.isNotEmpty == true)
                         Container(
@@ -661,7 +747,7 @@ class _SavePanelState extends State<SavePanel> {
             ),
           ),
         ),
-        Positioned(
+        if (!_isScrolling) Positioned(
           left: 0,
           right: 0,
           bottom: 0,
@@ -699,15 +785,17 @@ class _SavePanelState extends State<SavePanel> {
                             icon: showBottom
                                 ? const Icon(Icons.visibility_off)
                                 : const Icon(Icons.visibility),
-                            onPressed: () => setState(() {
-                              showBottom = !showBottom;
-                            }),
+                            onPressed: _isActionInProgress
+                                ? null
+                                : () => setState(() {
+                                    showBottom = !showBottom;
+                                  }),
                           ),
                           iconButton(
                             size: buttonSize,
                             tooltip: '关闭',
                             icon: const Icon(Icons.clear),
-                            onPressed: Get.back,
+                            onPressed: _isActionInProgress ? null : Get.back,
                             bgColor: theme.colorScheme.onInverseSurface,
                             iconColor: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -716,7 +804,9 @@ class _SavePanelState extends State<SavePanel> {
                             tooltip: '保存',
                             context: context,
                             icon: const Icon(Icons.save_alt),
-                            onPressed: _onPicAction,
+                            onPressed: _isActionInProgress
+                                ? null
+                                : _onPicAction,
                           ),
                           iconButton(
                             size: buttonSize,
@@ -727,16 +817,20 @@ class _SavePanelState extends State<SavePanel> {
                                   ? Icons.grid_view_outlined
                                   : Icons.view_agenda_outlined,
                             ),
-                            onPressed: () => setState(() {
-                              showFullImages = !showFullImages;
-                            }),
+                            onPressed: _isActionInProgress
+                                ? null
+                                : () => setState(() {
+                                    showFullImages = !showFullImages;
+                                  }),
                           ),
                           iconButton(
                             size: buttonSize,
                             tooltip: '复制图片',
                             context: context,
                             icon: const Icon(Icons.copy_outlined),
-                            onPressed: () => _onPicAction(_PicAction.copy),
+                            onPressed: _isActionInProgress
+                                ? null
+                                : () => _onPicAction(_PicAction.copy),
                           ),
                         ],
                       );

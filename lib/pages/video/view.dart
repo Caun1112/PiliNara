@@ -1873,6 +1873,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           if (shouldShow)
             Positioned(
               right: padding.right + kFloatingActionButtonMargin,
+              // /videoV 专用按钮：在原 172 的基础上上移 60 个逻辑像素。
               bottom: padding.bottom + kFloatingActionButtonMargin + 232,
               child: FloatingActionButton(
                 heroTag: null,
