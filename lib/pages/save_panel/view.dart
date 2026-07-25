@@ -72,7 +72,7 @@ class SavePanel extends StatefulWidget {
 
 class _SavePanelState extends State<SavePanel> {
   final boundaryKey = GlobalKey();
-  final Set<int> _excludedReplyIds = <int>{};
+  final Set<int> _selectedReplyIds = <int>{};
 
   bool showBottom = false;
   bool showFullImages = false;
@@ -359,15 +359,15 @@ class _SavePanelState extends State<SavePanel> {
   }
 
   bool _isReplySelected(ReplyInfo reply) {
-    return !_excludedReplyIds.contains(reply.id.toInt());
+    return _selectedReplyIds.contains(reply.id.toInt());
   }
 
   void _toggleReply(ReplyInfo reply) {
     if (_isCapturing) return;
     final id = reply.id.toInt();
     setState(() {
-      if (!_excludedReplyIds.add(id)) {
-        _excludedReplyIds.remove(id);
+      if (!_selectedReplyIds.add(id)) {
+        _selectedReplyIds.remove(id);
       }
     });
   }
@@ -375,7 +375,7 @@ class _SavePanelState extends State<SavePanel> {
   ReplyInfo _replyForCapture(ReplyInfo reply) {
     final capturedReply = reply.deepCopy();
     capturedReply.replies.removeWhere(
-      (childReply) => _excludedReplyIds.contains(childReply.id.toInt()),
+      (childReply) => !_selectedReplyIds.contains(childReply.id.toInt()),
     );
     capturedReply.count = Int64(capturedReply.replies.length);
     return capturedReply;
@@ -718,9 +718,7 @@ class _SavePanelState extends State<SavePanel> {
                           ),
                           iconButton(
                             size: buttonSize,
-                            tooltip: showFullImages
-                                ? '切换为集成展示'
-                                : '切换为全图展示',
+                            tooltip: showFullImages ? '切换为集成展示' : '切换为全图展示',
                             context: context,
                             icon: Icon(
                               showFullImages
