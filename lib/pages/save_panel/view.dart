@@ -26,6 +26,7 @@ import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:clipboard/clipboard.dart';
+import 'package:fixnum/fixnum.dart' show Int64;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -71,9 +72,12 @@ class SavePanel extends StatefulWidget {
 
 class _SavePanelState extends State<SavePanel> {
   final boundaryKey = GlobalKey();
+  final Set<int> _excludedReplyIds = <int>{};
 
   bool showBottom = false;
   bool showFullImages = false;
+  bool _isCapturing = false;
+  bool _isActionInProgress = false;
 
   // item
   late Object _item;
@@ -354,18 +358,54 @@ class _SavePanelState extends State<SavePanel> {
     return uri;
   }
 
+  bool _isReplySelected(ReplyInfo reply) {
+    return !_excludedReplyIds.contains(reply.id.toInt());
+  }
+
+  void _toggleReply(ReplyInfo reply) {
+    if (_isCapturing) return;
+    final id = reply.id.toInt();
+    setState(() {
+      if (!_excludedReplyIds.add(id)) {
+        _excludedReplyIds.remove(id);
+      }
+    });
+  }
+
+  ReplyInfo _replyForCapture(ReplyInfo reply) {
+    final capturedReply = reply.deepCopy();
+    capturedReply.replies.removeWhere(
+      (childReply) => _excludedReplyIds.contains(childReply.id.toInt()),
+    );
+    capturedReply.count = Int64(capturedReply.replies.length);
+    return capturedReply;
+  }
+
   Future<void> _onPicAction([_PicAction action = _PicAction.save]) async {
+    if (_isActionInProgress) return;
     if (_isLoadingReplies) {
       SmartDialog.showToast('正在加载完整回复');
       return;
     }
-    if (action == _PicAction.save &&
-        PlatformUtils.isMobile &&
-        !await ImageUtils.checkPermissionDependOnSdkInt()) {
-      return;
-    }
-    SmartDialog.showLoading();
+    _isActionInProgress = true;
+    ReplyInfo? originalReply;
     try {
+      if (action == _PicAction.save &&
+          PlatformUtils.isMobile &&
+          !await ImageUtils.checkPermissionDependOnSdkInt()) {
+        return;
+      }
+      SmartDialog.showLoading();
+      if (_item case final ReplyInfo reply) {
+        originalReply = reply;
+        if (mounted) {
+          setState(() {
+            _item = _replyForCapture(reply);
+            _isCapturing = true;
+          });
+          await WidgetsBinding.instance.endOfFrame;
+        }
+      }
       final boundary =
           boundaryKey.currentContext!.findRenderObject()
               as RenderRepaintBoundary;
@@ -392,6 +432,14 @@ class _SavePanelState extends State<SavePanel> {
     } catch (e) {
       if (kDebugMode) debugPrint('on save/share reply: $e');
       SmartDialog.dismiss();
+    } finally {
+      _isActionInProgress = false;
+      if (originalReply != null && mounted) {
+        setState(() {
+          _item = originalReply!;
+          _isCapturing = false;
+        });
+      }
     }
   }
 
@@ -425,7 +473,9 @@ class _SavePanelState extends State<SavePanel> {
                 child: AnimatedSize(
                   curve: Curves.easeInOut,
                   alignment: .topCenter,
-                  duration: const Duration(milliseconds: 255),
+                  duration: _isCapturing
+                      ? Duration.zero
+                      : const Duration(milliseconds: 255),
                   child: Column(
                     mainAxisSize: .min,
                     crossAxisAlignment: .start,
@@ -446,6 +496,7 @@ class _SavePanelState extends State<SavePanel> {
                             )
                           : switch (_item) {
                               ReplyInfo reply => IgnorePointer(
+                                ignoring: _isCapturing,
                                 child: ReplyItemGrpc(
                                   replyItem: reply,
                                   replyLevel: 0,
@@ -453,6 +504,10 @@ class _SavePanelState extends State<SavePanel> {
                                   upMid: widget.upMid,
                                   showFullImages: showFullImages,
                                   showReplies: true,
+                                  selectionMode: !_isCapturing,
+                                  isReplySelected: _isReplySelected,
+                                  onToggleReply: _toggleReply,
+                                  fullWidthReplies: true,
                                 ),
                               ),
                               DynamicItemModel dyn => IgnorePointer(

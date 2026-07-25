@@ -73,6 +73,10 @@ class ReplyItemGrpc extends StatelessWidget {
     this.jumpToDialogue,
     this.showFullImages,
     this.showReplies = false,
+    this.selectionMode = false,
+    this.isReplySelected,
+    this.onToggleReply,
+    this.fullWidthReplies = false,
   });
   final ReplyInfo replyItem;
   final int replyLevel;
@@ -89,6 +93,10 @@ class ReplyItemGrpc extends StatelessWidget {
   final VoidCallback? jumpToDialogue;
   final bool? showFullImages;
   final bool showReplies;
+  final bool selectionMode;
+  final bool Function(ReplyInfo reply)? isReplySelected;
+  final ValueChanged<ReplyInfo>? onToggleReply;
+  final bool fullWidthReplies;
 
   static final _voteRegExp = RegExp(r"^\{vote:\d+?\}$");
   static final _timeRegExp = RegExp(r'^(?:\d+[:：])?\d+[:：]\d+$');
@@ -137,9 +145,11 @@ class ReplyItemGrpc extends StatelessWidget {
     return Material(
       type: MaterialType.transparency,
       child: InkWell(
-        onTap: () => replyReply?.call(replyItem, null),
-        onLongPress: showMore,
-        onSecondaryTap: PlatformUtils.isMobile ? null : showMore,
+        onTap: selectionMode ? null : () => replyReply?.call(replyItem, null),
+        onLongPress: selectionMode ? null : showMore,
+        onSecondaryTap: selectionMode || PlatformUtils.isMobile
+            ? null
+            : showMore,
         child: child,
       ),
     );
@@ -308,42 +318,48 @@ class ReplyItemGrpc extends StatelessWidget {
       mainAxisSize: .min,
       crossAxisAlignment: .start,
       children: [
-        _buildHeader(context, theme),
+        IgnorePointer(
+          ignoring: selectionMode,
+          child: _buildHeader(context, theme),
+        ),
         const SizedBox(height: 10),
         Padding(
           padding: padding,
-          child: custom_text.Text.rich(
-            primary: theme.colorScheme.primary,
-            style: TextStyle(
-              height: 1.75,
-              fontSize: theme.textTheme.bodyMedium!.fontSize,
-            ),
-            maxLines: replyLevel == 1 ? replyLengthLimit : null,
-            TextSpan(
-              children: [
-                if (replyControl.isUpTop) ...[
-                  const WidgetSpan(
-                    alignment: PlaceholderAlignment.middle,
-                    child: PBadge(
-                      text: 'TOP',
-                      size: PBadgeSize.small,
-                      isStack: false,
-                      type: PBadgeType.line_primary,
-                      fontSize: 9,
-                      textScaleFactor: 1,
+          child: IgnorePointer(
+            ignoring: selectionMode,
+            child: custom_text.Text.rich(
+              primary: theme.colorScheme.primary,
+              style: TextStyle(
+                height: 1.75,
+                fontSize: theme.textTheme.bodyMedium!.fontSize,
+              ),
+              maxLines: replyLevel == 1 ? replyLengthLimit : null,
+              TextSpan(
+                children: [
+                  if (replyControl.isUpTop) ...[
+                    const WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: PBadge(
+                        text: 'TOP',
+                        size: PBadgeSize.small,
+                        isStack: false,
+                        type: PBadgeType.line_primary,
+                        fontSize: 9,
+                        textScaleFactor: 1,
+                      ),
                     ),
+                    const TextSpan(text: ' '),
+                  ],
+                  _buildMessage(
+                    context,
+                    theme,
+                    replyControl.showTranslation
+                        ? replyItem.translatedContent
+                        : replyItem.content,
+                    replyControl,
                   ),
-                  const TextSpan(text: ' '),
                 ],
-                _buildMessage(
-                  context,
-                  theme,
-                  replyControl.showTranslation
-                      ? replyItem.translatedContent
-                      : replyItem.content,
-                  replyControl,
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -400,17 +416,20 @@ class ReplyItemGrpc extends StatelessWidget {
                       );
                     },
                   )
-                : ImageGridView(
-                    picArr: replyItem.content.pictures
-                        .map(
-                          (item) => ImageModel(
-                            width: item.imgWidth,
-                            height: item.imgHeight,
-                            url: item.imgSrc,
-                          ),
-                        )
-                        .toList(),
-                    onViewImage: onViewImage,
+                : IgnorePointer(
+                    ignoring: selectionMode,
+                    child: ImageGridView(
+                      picArr: replyItem.content.pictures
+                          .map(
+                            (item) => ImageModel(
+                              width: item.imgWidth,
+                              height: item.imgHeight,
+                              url: item.imgSrc,
+                            ),
+                          )
+                          .toList(),
+                      onViewImage: onViewImage,
+                    ),
                   ),
           ),
           const SizedBox(height: 4),
@@ -428,6 +447,10 @@ class ReplyItemGrpc extends StatelessWidget {
               theme,
               replyItem.replies,
               showAll: showReplies,
+              selectionMode: selectionMode,
+              isReplySelected: isReplySelected,
+              onToggleReply: onToggleReply,
+              fullWidth: fullWidthReplies,
             ),
           ),
         ],
@@ -596,12 +619,18 @@ class ReplyItemGrpc extends StatelessWidget {
     ThemeData theme,
     List<ReplyInfo> replies, {
     bool showAll = false,
+    bool selectionMode = false,
+    bool Function(ReplyInfo reply)? isReplySelected,
+    ValueChanged<ReplyInfo>? onToggleReply,
+    bool fullWidth = false,
   }) {
     if (showAll && replies.isEmpty) return const SizedBox.shrink();
     final extraRow = !showAll && replies.length < replyItem.count.toInt();
     late final length = replies.length + (extraRow ? 1 : 0);
     return Padding(
-      padding: const EdgeInsets.only(left: 42, right: 4),
+      padding: fullWidth
+          ? EdgeInsets.zero
+          : const EdgeInsets.only(left: 42, right: 4),
       child: Material(
         color: theme.colorScheme.onInverseSurface,
         borderRadius: const BorderRadius.all(Radius.circular(6)),
@@ -613,6 +642,7 @@ class ReplyItemGrpc extends StatelessWidget {
             if (replies.isNotEmpty)
               ...List.generate(replies.length, (index) {
                 final childReply = replies[index];
+                final selected = isReplySelected?.call(childReply) ?? true;
                 EdgeInsets padding;
                 if (length == 1) {
                   padding = const EdgeInsets.fromLTRB(8, 5, 8, 5);
@@ -641,13 +671,10 @@ class ReplyItemGrpc extends StatelessWidget {
                     );
                   },
                 );
-                return InkWell(
-                  onTap: () =>
-                      replyReply?.call(replyItem, childReply.id.toInt()),
-                  onLongPress: showMore,
-                  onSecondaryTap: PlatformUtils.isMobile ? null : showMore,
-                  child: Padding(
-                    padding: padding,
+                Widget content = Padding(
+                  padding: padding,
+                  child: IgnorePointer(
+                    ignoring: selectionMode,
                     child: Text.rich(
                       style: TextStyle(
                         fontSize: theme.textTheme.bodyMedium!.fontSize,
@@ -707,12 +734,61 @@ class ReplyItemGrpc extends StatelessWidget {
                     ),
                   ),
                 );
+                if (selectionMode && !selected) {
+                  content = ColorFiltered(
+                    colorFilter: const ColorFilter.matrix(<double>[
+                      0.2126,
+                      0.7152,
+                      0.0722,
+                      0,
+                      0,
+                      0.2126,
+                      0.7152,
+                      0.0722,
+                      0,
+                      0,
+                      0.2126,
+                      0.7152,
+                      0.0722,
+                      0,
+                      0,
+                      0,
+                      0,
+                      0,
+                      1,
+                      0,
+                    ]),
+                    child: AnimatedOpacity(
+                      opacity: 0.58,
+                      duration: const Duration(milliseconds: 150),
+                      child: content,
+                    ),
+                  );
+                }
+                return Semantics(
+                  selected: selectionMode ? selected : null,
+                  child: InkWell(
+                    onTap: selectionMode
+                        ? () => onToggleReply?.call(childReply)
+                        : () => replyReply?.call(
+                            replyItem,
+                            childReply.id.toInt(),
+                          ),
+                    onLongPress: selectionMode ? null : showMore,
+                    onSecondaryTap: selectionMode || PlatformUtils.isMobile
+                        ? null
+                        : showMore,
+                    child: content,
+                  ),
+                );
               }),
             if (showAll && replies.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(8, 5, 8, 8),
                 child: Text(
-                  '共${replyItem.count}条回复',
+                  selectionMode
+                      ? '已选${replies.where((reply) => isReplySelected?.call(reply) ?? true).length}/${replies.length}条回复'
+                      : '共${replyItem.count}条回复',
                   style: TextStyle(
                     fontSize: theme.textTheme.labelMedium!.fontSize,
                     color: theme.colorScheme.primary,
