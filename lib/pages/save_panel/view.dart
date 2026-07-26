@@ -16,6 +16,7 @@ import 'package:PiliPlus/models/dynamics/result.dart';
 import 'package:PiliPlus/pages/common/publish/publish_route.dart';
 import 'package:PiliPlus/pages/dynamics/widgets/dynamic_panel.dart';
 import 'package:PiliPlus/pages/music/controller.dart';
+import 'package:PiliPlus/pages/save_panel/smart_reply_selector.dart';
 import 'package:PiliPlus/pages/video/introduction/pgc/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/controller.dart';
 import 'package:PiliPlus/pages/video/reply/widgets/reply_item_grpc.dart';
@@ -58,6 +59,31 @@ double? calculateSavePanelPixelRatio(Size logicalSize) {
   return safeRatio >= 1 ? safeRatio : null;
 }
 
+@visibleForTesting
+ReplyInfo buildReplyForCapture(
+  ReplyInfo reply, {
+  required Set<int> selectedIds,
+  required List<int> selectedOrder,
+}) {
+  final capturedReply = reply.deepCopy();
+  final selectedById = <int, ReplyInfo>{
+    for (final childReply in capturedReply.replies)
+      if (selectedIds.contains(childReply.id.toInt()))
+        childReply.id.toInt(): childReply,
+  };
+  final orderedReplies = <ReplyInfo>[];
+  for (final id in selectedOrder) {
+    final childReply = selectedById.remove(id);
+    if (childReply != null) orderedReplies.add(childReply);
+  }
+  orderedReplies.addAll(selectedById.values);
+  capturedReply.replies
+    ..clear()
+    ..addAll(orderedReplies);
+  capturedReply.count = Int64(orderedReplies.length);
+  return capturedReply;
+}
+
 class SavePanel extends StatefulWidget {
   const SavePanel({
     required this.item,
@@ -96,8 +122,12 @@ class SavePanel extends StatefulWidget {
 class _SavePanelState extends State<SavePanel> {
   final boundaryKey = GlobalKey();
   final Set<int> _selectedReplyIds = <int>{};
+  final List<int> _selectedReplyOrder = <int>[];
+  final Map<int, String> _selectionReasons = <int, String>{};
   late final ScrollController _scrollController;
 
+  SmartReplyMode? _smartReplyMode;
+  bool _selectionOrderCustomized = false;
   bool showBottom = false;
   bool showFullImages = false;
   bool _isCapturing = false;
@@ -401,23 +431,148 @@ class _SavePanelState extends State<SavePanel> {
     return _selectedReplyIds.contains(reply.id.toInt());
   }
 
+  String? _selectionReason(ReplyInfo reply) {
+    return _selectionReasons[reply.id.toInt()];
+  }
+
+  int? get _upMid {
+    final value = widget.upMid;
+    if (value is Int64) return value.toInt();
+    if (value is int) return value;
+    return value == null ? null : int.tryParse(value.toString());
+  }
+
+  void _syncSelectionOrder(ReplyInfo reply) {
+    if (_selectionOrderCustomized) return;
+    _selectedReplyOrder
+      ..clear()
+      ..addAll(
+        reply.replies
+            .where(
+              (childReply) => _selectedReplyIds.contains(childReply.id.toInt()),
+            )
+            .map((childReply) => childReply.id.toInt()),
+      );
+  }
+
   void _toggleReply(ReplyInfo reply) {
     if (_isCapturing || _isActionInProgress) return;
     final id = reply.id.toInt();
     setState(() {
-      if (!_selectedReplyIds.add(id)) {
+      if (_selectedReplyIds.add(id)) {
+        _selectionReasons.remove(id);
+        if (_selectionOrderCustomized) {
+          _selectedReplyOrder.add(id);
+        } else if (_item case final ReplyInfo rootReply) {
+          _syncSelectionOrder(rootReply);
+        }
+      } else {
         _selectedReplyIds.remove(id);
+        _selectedReplyOrder.remove(id);
+        _selectionReasons.remove(id);
       }
     });
   }
 
-  ReplyInfo _replyForCapture(ReplyInfo reply) {
-    final capturedReply = reply.deepCopy();
-    capturedReply.replies.removeWhere(
-      (childReply) => !_selectedReplyIds.contains(childReply.id.toInt()),
+  void _clearReplySelection() {
+    if (_isCapturing || _isActionInProgress) return;
+    setState(() {
+      _selectedReplyIds.clear();
+      _selectedReplyOrder.clear();
+      _selectionReasons.clear();
+      _smartReplyMode = null;
+      _selectionOrderCustomized = false;
+    });
+  }
+
+  double get _smartReplyContentWidth => max(
+    240.0,
+    context.mediaQueryShortestSide - 64,
+  );
+
+  double _smartReplyHeightBudget(ReplyInfo reply) {
+    final mediaQuery = MediaQuery.of(context);
+    final usableScreenHeight =
+        mediaQuery.size.height - mediaQuery.viewPadding.vertical;
+    final rootHeight = estimateReplyCaptureHeight(
+      reply,
+      showFullImages: showFullImages,
+      contentWidth: _smartReplyContentWidth,
     );
-    capturedReply.count = Int64(capturedReply.replies.length);
-    return capturedReply;
+    final coverHeight = cover?.isNotEmpty == true && title?.isNotEmpty == true
+        ? 81.0
+        : 0.0;
+    final sourceHeight = showBottom ? 112.0 : 12.0;
+    final incompleteHintHeight = _replyLoadIncomplete ? 40.0 : 0.0;
+    const storyHeaderAndSpacing = 98.0;
+    return max(
+      0,
+      usableScreenHeight -
+          rootHeight -
+          coverHeight -
+          sourceHeight -
+          incompleteHintHeight -
+          storyHeaderAndSpacing,
+    );
+  }
+
+  void _applySmartReplySelection(SmartReplyMode mode) {
+    if (_isCapturing || _isActionInProgress || _isLoadingReplies) return;
+    if (_item case final ReplyInfo reply) {
+      final selection = selectSmartReplies(
+        root: reply,
+        mode: mode,
+        upMid: _upMid,
+        maxEstimatedReplyHeight: _smartReplyHeightBudget(reply),
+        showFullImages: showFullImages,
+        contentWidth: _smartReplyContentWidth,
+      );
+      if (selection.recommendations.isEmpty) {
+        SmartDialog.showToast('没有找到适合当前一屏长度的匹配评论，可切换目的或手动选择');
+        return;
+      }
+      setState(() {
+        _selectedReplyIds
+          ..clear()
+          ..addAll(
+            selection.recommendations.map(
+              (recommendation) => recommendation.replyId,
+            ),
+          );
+        _selectedReplyOrder
+          ..clear()
+          ..addAll(
+            selection.recommendations.map(
+              (recommendation) => recommendation.replyId,
+            ),
+          );
+        _selectionReasons
+          ..clear()
+          ..addEntries(
+            selection.recommendations.map(
+              (recommendation) => MapEntry(
+                recommendation.replyId,
+                recommendation.reason,
+              ),
+            ),
+          );
+        _smartReplyMode = mode;
+        _selectionOrderCustomized = false;
+      });
+      SmartDialog.showToast(
+        _replyLoadIncomplete
+            ? '已基于当前加载内容推荐，可继续手动增删'
+            : '已推荐 ${selection.recommendations.length} 条，可继续手动增删',
+      );
+    }
+  }
+
+  ReplyInfo _replyForCapture(ReplyInfo reply) {
+    return buildReplyForCapture(
+      reply,
+      selectedIds: _selectedReplyIds,
+      selectedOrder: _selectedReplyOrder,
+    );
   }
 
   Future<void> _onPicAction([_PicAction action = _PicAction.save]) async {
@@ -502,6 +657,299 @@ class _SavePanelState extends State<SavePanel> {
     }
   }
 
+  List<ReplyInfo> _orderedSelectedReplies(ReplyInfo reply) {
+    final selectedById = <int, ReplyInfo>{
+      for (final childReply in reply.replies)
+        if (_selectedReplyIds.contains(childReply.id.toInt()))
+          childReply.id.toInt(): childReply,
+    };
+    final orderedReplies = <ReplyInfo>[];
+    for (final id in _selectedReplyOrder) {
+      final childReply = selectedById.remove(id);
+      if (childReply != null) orderedReplies.add(childReply);
+    }
+    orderedReplies.addAll(selectedById.values);
+    return orderedReplies;
+  }
+
+  Future<void> _showReplyOrderSheet(ReplyInfo reply) async {
+    if (_selectedReplyIds.length < 2 || _isActionInProgress) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      showDragHandle: true,
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxWidth: min(640, context.mediaQueryShortestSide),
+      ),
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final orderedReplies = _orderedSelectedReplies(reply);
+            return SizedBox(
+              height: min(560, MediaQuery.sizeOf(sheetContext).height * 0.72),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            spacing: 2,
+                            children: [
+                              Text(
+                                '调整成图顺序',
+                                style: Theme.of(
+                                  sheetContext,
+                                ).textTheme.titleMedium,
+                              ),
+                              Text(
+                                '拖动右侧把手；默认保持原评论顺序',
+                                style: TextStyle(
+                                  color: Theme.of(
+                                    sheetContext,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: '完成调整',
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(Icons.done),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: ReorderableListView.builder(
+                      buildDefaultDragHandles: false,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: orderedReplies.length,
+                      onReorderItem: (oldIndex, newIndex) {
+                        final reorderedIds = orderedReplies
+                            .map((item) => item.id.toInt())
+                            .toList();
+                        final id = reorderedIds.removeAt(oldIndex);
+                        reorderedIds.insert(newIndex, id);
+                        setState(() {
+                          _selectedReplyOrder
+                            ..clear()
+                            ..addAll(reorderedIds);
+                          _selectionOrderCustomized = true;
+                        });
+                        setSheetState(() {});
+                      },
+                      itemBuilder: (context, index) {
+                        final item = orderedReplies[index];
+                        final message = item.content.message.trim();
+                        return ListTile(
+                          key: ValueKey(item.id.toInt()),
+                          leading: CircleAvatar(
+                            radius: 15,
+                            child: Text('${index + 1}'),
+                          ),
+                          title: Text(
+                            item.member.name.isEmpty
+                                ? '未命名用户'
+                                : item.member.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            message.isNotEmpty
+                                ? message
+                                : item.content.pictures.isNotEmpty
+                                ? '[图片评论]'
+                                : '[无文字内容]',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: ReorderableDragStartListener(
+                            index: index,
+                            child: const Tooltip(
+                              message: '拖动排序',
+                              child: Padding(
+                                padding: EdgeInsets.all(12),
+                                child: Icon(Icons.drag_handle),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildSmartReplyPanel(ThemeData theme, ReplyInfo reply) {
+    final mode = _smartReplyMode;
+    return Material(
+      type: MaterialType.transparency,
+      child: Container(
+        width: double.infinity,
+        color: theme.colorScheme.surfaceContainer,
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 10,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.auto_awesome_outlined,
+                  size: 20,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '智能选评',
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                Icon(
+                  Icons.lock_outline,
+                  size: 15,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '本地分析',
+                  style: TextStyle(
+                    color: theme.colorScheme.primary,
+                    fontSize: theme.textTheme.labelMedium!.fontSize,
+                  ),
+                ),
+              ],
+            ),
+            Text(
+              mode == null
+                  ? '选择分享目的，优先推荐适合一屏分享的少量评论；质量不足时宁缺毋滥。'
+                  : '已按“${mode.label}”选择 ${_selectedReplyIds.length} 条，可继续点击评论增删。',
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final item in SmartReplyMode.values)
+                  Tooltip(
+                    message: item.description,
+                    child: ChoiceChip(
+                      avatar: Icon(item.icon, size: 18),
+                      label: Text(item.label),
+                      selected: mode == item,
+                      onSelected: _isActionInProgress
+                          ? null
+                          : (_) => _applySmartReplySelection(item),
+                    ),
+                  ),
+              ],
+            ),
+            if (mode == SmartReplyMode.knowledge)
+              Text(
+                '科普补充只做文本规则推荐，不代表事实核验。',
+                style: TextStyle(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontSize: theme.textTheme.labelMedium!.fontSize,
+                ),
+              ),
+            if (_replyLoadIncomplete)
+              Text(
+                '完整回复加载不完整，推荐仅基于当前已加载评论。',
+                style: TextStyle(
+                  color: theme.colorScheme.error,
+                  fontSize: theme.textTheme.labelMedium!.fontSize,
+                ),
+              ),
+            if (_selectedReplyIds.isNotEmpty)
+              Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 4,
+                children: [
+                  Text(
+                    '当前已选 ${_selectedReplyIds.length} 条',
+                    style: theme.textTheme.labelLarge,
+                  ),
+                  TextButton.icon(
+                    onPressed: _selectedReplyIds.length < 2
+                        ? null
+                        : () => _showReplyOrderSheet(reply),
+                    icon: const Icon(Icons.reorder),
+                    label: const Text('调整顺序'),
+                  ),
+                  TextButton.icon(
+                    onPressed: _clearReplySelection,
+                    icon: const Icon(Icons.clear_all),
+                    label: const Text('清空'),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStoryCardHeader(ThemeData theme) {
+    final mode = _smartReplyMode;
+    if (mode == null || _selectedReplyIds.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Semantics(
+      header: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        color: theme.colorScheme.surfaceContainerLow,
+        child: Row(
+          children: [
+            Icon(
+              mode.icon,
+              color: theme.colorScheme.primary,
+              size: 22,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 1,
+                children: [
+                  Text('评论故事卡', style: theme.textTheme.titleSmall),
+                  Text(
+                    '${mode.label} · 原文未改写',
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: theme.textTheme.labelMedium!.fontSize,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              '${_selectedReplyIds.length} 条',
+              style: TextStyle(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _handleScrollActivity() {
     final isScrolling =
         _scrollController.hasClients &&
@@ -511,6 +959,11 @@ class _SavePanelState extends State<SavePanel> {
         _isScrolling = isScrolling;
       });
     }
+  }
+
+  void _stopActiveScroll() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.jumpTo(_scrollController.offset);
   }
 
   @override
@@ -558,6 +1011,11 @@ class _SavePanelState extends State<SavePanel> {
                     mainAxisSize: .min,
                     crossAxisAlignment: .start,
                     children: [
+                      if (!_isCapturing &&
+                          !_isLoadingReplies &&
+                          _item is ReplyInfo)
+                        _buildSmartReplyPanel(theme, _item as ReplyInfo),
+                      _buildStoryCardHeader(theme),
                       _isLoadingReplies
                           ? const Padding(
                               padding: EdgeInsets.symmetric(vertical: 48),
@@ -585,6 +1043,7 @@ class _SavePanelState extends State<SavePanel> {
                                   selectionMode: !_isCapturing,
                                   isReplySelected: _isReplySelected,
                                   onToggleReply: _toggleReply,
+                                  selectionReason: _selectionReason,
                                   fullWidthReplies: true,
                                 ),
                               ),
@@ -841,6 +1300,13 @@ class _SavePanelState extends State<SavePanel> {
             ),
           ),
         ),
+        if (_isScrolling)
+          Positioned.fill(
+            child: Listener(
+              behavior: HitTestBehavior.opaque,
+              onPointerDown: (_) => _stopActiveScroll(),
+            ),
+          ),
       ],
     );
   }
@@ -849,3 +1315,12 @@ class _SavePanelState extends State<SavePanel> {
 enum _CoverType { def16_9, square }
 
 enum _PicAction { save, copy }
+
+extension _SmartReplyModeUi on SmartReplyMode {
+  IconData get icon => switch (this) {
+    SmartReplyMode.highlight => Icons.auto_awesome_outlined,
+    SmartReplyMode.debate => Icons.forum_outlined,
+    SmartReplyMode.knowledge => Icons.lightbulb_outline,
+    SmartReplyMode.humor => Icons.sentiment_very_satisfied_outlined,
+  };
+}

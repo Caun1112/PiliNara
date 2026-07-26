@@ -76,6 +76,7 @@ class ReplyItemGrpc extends StatelessWidget {
     this.selectionMode = false,
     this.isReplySelected,
     this.onToggleReply,
+    this.selectionReason,
     this.fullWidthReplies = false,
   });
   final ReplyInfo replyItem;
@@ -96,6 +97,7 @@ class ReplyItemGrpc extends StatelessWidget {
   final bool selectionMode;
   final bool Function(ReplyInfo reply)? isReplySelected;
   final ValueChanged<ReplyInfo>? onToggleReply;
+  final String? Function(ReplyInfo reply)? selectionReason;
   final bool fullWidthReplies;
 
   static final _voteRegExp = RegExp(r"^\{vote:\d+?\}$");
@@ -388,6 +390,7 @@ class ReplyItemGrpc extends StatelessWidget {
               selectionMode: selectionMode,
               isReplySelected: isReplySelected,
               onToggleReply: onToggleReply,
+              selectionReason: selectionReason,
               fullWidth: fullWidthReplies,
             ),
           ),
@@ -634,6 +637,7 @@ class ReplyItemGrpc extends StatelessWidget {
     bool selectionMode = false,
     bool Function(ReplyInfo reply)? isReplySelected,
     ValueChanged<ReplyInfo>? onToggleReply,
+    String? Function(ReplyInfo reply)? selectionReason,
     bool fullWidth = false,
   }) {
     if (showAll && replies.isEmpty) return const SizedBox.shrink();
@@ -760,6 +764,47 @@ class ReplyItemGrpc extends StatelessWidget {
                     ],
                   );
                 }
+                final reason = selectionReason?.call(childReply);
+                if (selectionMode && selected) {
+                  final hasReason = reason?.isNotEmpty == true;
+                  content = Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      content,
+                      Padding(
+                        padding: EdgeInsets.only(
+                          left: padding.left,
+                          right: padding.right,
+                          bottom: 4,
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          spacing: 5,
+                          children: [
+                            Icon(
+                              hasReason
+                                  ? Icons.auto_awesome_outlined
+                                  : Icons.check_circle_outline,
+                              size: 14,
+                              color: theme.colorScheme.primary,
+                            ),
+                            Expanded(
+                              child: Text(
+                                hasReason ? reason! : '已选入图片',
+                                style: TextStyle(
+                                  fontSize:
+                                      theme.textTheme.labelMedium!.fontSize,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }
                 if (selectionMode && !selected) {
                   content = ColorFiltered(
                     colorFilter: const ColorFilter.matrix(<double>[
@@ -793,6 +838,13 @@ class ReplyItemGrpc extends StatelessWidget {
                 }
                 return Semantics(
                   selected: selectionMode ? selected : null,
+                  label: selectionMode
+                      ? selected
+                            ? reason?.isNotEmpty == true
+                                  ? '已选择，推荐理由：$reason'
+                                  : '已选择'
+                            : '未选择'
+                      : null,
                   child: InkWell(
                     onTap: selectionMode
                         ? () => onToggleReply?.call(childReply)

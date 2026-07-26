@@ -95,6 +95,57 @@ void main() {
     expect(find.text('主评论保留 · 已选0/120条跟评'), findsOneWidget);
   });
 
+  testWidgets('惯性滚动期间点击跟评只会暂停，不会误选或退出', (tester) async {
+    await _openSavePanel(tester, _longReply());
+
+    final scrollViewFinder = find.byType(SingleChildScrollView);
+    final scrollableFinder = find.descendant(
+      of: scrollViewFinder,
+      matching: find.byType(Scrollable),
+    );
+    final position = tester.state<ScrollableState>(scrollableFinder).position;
+    final selectableReplyFinder = find
+        .descendant(
+          of: find.byType(ReplyItemGrpc),
+          matching: find.byWidgetPredicate(
+            (widget) => widget is InkWell && widget.onTap != null,
+          ),
+        )
+        .hitTestable()
+        .first;
+    final tapPosition = tester.getCenter(selectableReplyFinder);
+
+    await tester.fling(scrollViewFinder, const Offset(0, -900), 8000);
+    await tester.pump(const Duration(milliseconds: 32));
+    final scrollingOffset = position.pixels;
+    await tester.pump(const Duration(milliseconds: 32));
+    expect(position.pixels, greaterThan(scrollingOffset));
+
+    await tester.tapAt(tapPosition);
+    await tester.pump(const Duration(milliseconds: 200));
+
+    final stoppedOffset = position.pixels;
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(position.pixels, closeTo(stoppedOffset, 0.1));
+    expect(find.byType(SavePanel), findsOneWidget);
+    expect(find.text('主评论保留 · 已选0/120条跟评'), findsOneWidget);
+
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(ReplyItemGrpc),
+            matching: find.byWidgetPredicate(
+              (widget) => widget is InkWell && widget.onTap != null,
+            ),
+          )
+          .hitTestable()
+          .first,
+    );
+    await tester.pump();
+
+    expect(find.text('主评论保留 · 已选1/120条跟评'), findsOneWidget);
+  });
+
   testWidgets('保存评论页不能通过点击遮罩退出', (tester) async {
     await _openSavePanel(tester, _longReply());
 
@@ -126,7 +177,14 @@ void main() {
 
     expect(find.text('主评论保留 · 已选1/120条跟评'), findsOneWidget);
 
-    await tester.tapAt(tapPosition);
+    await tester.tap(
+      find
+          .ancestor(
+            of: find.text('已选入图片'),
+            matching: find.byType(InkWell),
+          )
+          .first,
+    );
     await tester.pump();
 
     expect(find.text('主评论保留 · 已选0/120条跟评'), findsOneWidget);
@@ -145,6 +203,91 @@ void main() {
     );
   });
 
+  testWidgets('点击图片跟评只切换选择，不会退出保存页', (tester) async {
+    await _openSavePanel(tester, _replyWithPicture());
+
+    final imageFinder = find.byWidgetPredicate(
+      (widget) =>
+          widget is NetworkImgLayer &&
+          widget.src == 'https://example.invalid/child.png',
+    );
+    await tester.tap(imageFinder);
+    await tester.pump();
+
+    expect(find.byType(SavePanel), findsOneWidget);
+    expect(find.text('主评论保留 · 已选1/1条跟评'), findsOneWidget);
+  });
+
+  testWidgets('智能选评会给出理由、故事卡和成图排序入口', (tester) async {
+    await _openSavePanel(tester, _smartReply());
+
+    expect(find.text('智能选评'), findsOneWidget);
+    expect(find.text('本地分析'), findsOneWidget);
+
+    await tester.tap(find.text('精彩观点'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('已按“精彩观点”选择 4 条，可继续点击评论增删。'),
+      findsOneWidget,
+    );
+    expect(find.text('评论故事卡'), findsOneWidget);
+    expect(find.text('精彩观点 · 原文未改写'), findsOneWidget);
+    expect(find.text('主评论保留 · 已选4/5条跟评'), findsOneWidget);
+    expect(find.textContaining('互动较高'), findsWidgets);
+
+    await tester.tap(find.text('调整顺序'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('调整成图顺序'), findsOneWidget);
+    expect(find.byType(ReorderableListView), findsOneWidget);
+    expect(find.byIcon(Icons.drag_handle), findsNWidgets(4));
+
+    await tester.tap(find.byTooltip('完成调整'));
+    await tester.pumpAndSettle();
+    expect(find.text('调整成图顺序'), findsNothing);
+  });
+
+  testWidgets('智能选评在小屏和较大字体下不会布局溢出', (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+    });
+
+    await _openSavePanel(tester, _smartReply());
+    await tester.tap(find.text('精彩观点'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('精彩观点'), findsOneWidget);
+    expect(find.text('正反讨论'), findsOneWidget);
+    expect(find.text('科普补充'), findsOneWidget);
+    expect(find.text('搞笑瞬间'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('智能选评会按当前屏幕扣除主评论后的高度控制数量', (tester) async {
+    tester.view.physicalSize = const Size(320, 480);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await _openSavePanel(tester, _smartReply());
+    await tester.tap(find.text('精彩观点'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('已按“精彩观点”选择 2 条，可继续点击评论增删。'),
+      findsOneWidget,
+    );
+    expect(find.text('主评论保留 · 已选2/5条跟评'), findsOneWidget);
+  });
+
   testWidgets('保存评论页仍可通过关闭按钮退出', (tester) async {
     await _openSavePanel(tester, _longReply());
 
@@ -161,6 +304,20 @@ void main() {
       closeTo(1.2, 0.001),
     );
     expect(calculateSavePanelPixelRatio(const Size(430, 20000)), isNull);
+  });
+
+  test('成图只保留已选跟评并使用用户调整后的顺序', () {
+    final original = _longReply();
+
+    final captured = buildReplyForCapture(
+      original,
+      selectedIds: const {2, 4},
+      selectedOrder: const [4, 2],
+    );
+
+    expect(captured.replies.map((item) => item.id.toInt()), [4, 2]);
+    expect(captured.count.toInt(), 2);
+    expect(original.replies.length, 120);
   });
 }
 
@@ -231,6 +388,63 @@ ReplyInfo _replyWithPicture() {
     replies: [child],
     member: Member(name: '根评论用户'),
     content: Content(message: '包含图片跟评的根评论'),
+    replyControl: ReplyControl(),
+  );
+}
+
+ReplyInfo _smartReply() {
+  final rootId = Int64(1);
+  final replies = <ReplyInfo>[
+    _smartChild(
+      id: 2,
+      mid: 20,
+      like: 80,
+      message: '我认为关键是区分滚动和点击，因为状态明确后就不会误触退出。',
+    ),
+    _smartChild(
+      id: 3,
+      mid: 30,
+      like: 60,
+      message: '例如先做本地推荐，再让用户手动增删，效率和控制权可以同时保留。',
+    ),
+    _smartChild(
+      id: 4,
+      mid: 40,
+      like: 40,
+      message: '但是最终图片仍需限制长度，否则长图既难阅读，也可能增加编码内存。',
+    ),
+    _smartChild(
+      id: 5,
+      mid: 50,
+      like: 20,
+      message: '所以推荐理由必须可见，用户才能判断系统为什么选择这条评论。',
+    ),
+    _smartChild(id: 6, mid: 60, like: 1000, message: '好'),
+  ];
+  return ReplyInfo(
+    id: rootId,
+    count: Int64(replies.length),
+    replies: replies,
+    member: Member(name: '根评论用户'),
+    content: Content(message: '用于测试智能选评界面的根评论'),
+    replyControl: ReplyControl(),
+  );
+}
+
+ReplyInfo _smartChild({
+  required int id,
+  required int mid,
+  required int like,
+  required String message,
+}) {
+  return ReplyInfo(
+    id: Int64(id),
+    root: Int64(1),
+    parent: Int64(1),
+    mid: Int64(mid),
+    like: Int64(like),
+    member: Member(mid: Int64(mid), name: '用户$mid'),
+    content: Content(message: message),
     replyControl: ReplyControl(),
   );
 }
