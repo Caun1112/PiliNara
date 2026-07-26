@@ -160,6 +160,13 @@ void main() {
   testWidgets('保存评论静止时仍可选择跟评', (tester) async {
     await _openSavePanel(tester, _longReply());
     expect(find.text('主评论保留 · 已选0/120条跟评'), findsOneWidget);
+    final clearButton = find.byKey(const Key('save-panel-smart-clear'));
+    final reorderButton = find.byKey(const Key('save-panel-smart-reorder'));
+    expect(tester.widget<TextButton>(_textButtonIn(clearButton)).onPressed, isNull);
+    expect(
+      tester.widget<TextButton>(_textButtonIn(reorderButton)).onPressed,
+      isNull,
+    );
 
     final replyInkWells = find.descendant(
       of: find.byType(ReplyItemGrpc),
@@ -176,6 +183,14 @@ void main() {
     await tester.pump();
 
     expect(find.text('主评论保留 · 已选1/120条跟评'), findsOneWidget);
+    expect(
+      tester.widget<TextButton>(_textButtonIn(clearButton)).onPressed,
+      isNotNull,
+    );
+    expect(
+      tester.widget<TextButton>(_textButtonIn(reorderButton)).onPressed,
+      isNull,
+    );
 
     await tester.tap(
       find
@@ -188,6 +203,11 @@ void main() {
     await tester.pump();
 
     expect(find.text('主评论保留 · 已选0/120条跟评'), findsOneWidget);
+    expect(tester.widget<TextButton>(_textButtonIn(clearButton)).onPressed, isNull);
+    expect(
+      tester.widget<TextButton>(_textButtonIn(reorderButton)).onPressed,
+      isNull,
+    );
   });
 
   testWidgets('图片跟评会显示在保存评论页中', (tester) async {
@@ -221,8 +241,19 @@ void main() {
   testWidgets('智能选评会给出理由、故事卡和成图排序入口', (tester) async {
     await _openSavePanel(tester, _smartReply());
 
-    expect(find.text('智能选评'), findsOneWidget);
     expect(find.byTooltip('本地分析，不上传评论'), findsOneWidget);
+    final clearButton = find.byKey(const Key('save-panel-smart-clear'));
+    final reorderButton = find.byKey(const Key('save-panel-smart-reorder'));
+    expect(clearButton, findsOneWidget);
+    expect(reorderButton, findsOneWidget);
+    expect(find.text('清空'), findsOneWidget);
+    expect(find.text('调整'), findsOneWidget);
+    expect(find.byTooltip('选评操作'), findsNothing);
+    expect(tester.widget<TextButton>(_textButtonIn(clearButton)).onPressed, isNull);
+    expect(
+      tester.widget<TextButton>(_textButtonIn(reorderButton)).onPressed,
+      isNull,
+    );
 
     await tester.tap(find.text('精彩观点'));
     await tester.pumpAndSettle();
@@ -236,10 +267,16 @@ void main() {
     expect(find.text('精彩观点 · 原文未改写'), findsOneWidget);
     expect(find.text('主评论保留 · 已选4/5条跟评'), findsOneWidget);
     expect(find.textContaining('互动较高'), findsWidgets);
+    expect(
+      tester.widget<TextButton>(_textButtonIn(clearButton)).onPressed,
+      isNotNull,
+    );
+    expect(
+      tester.widget<TextButton>(_textButtonIn(reorderButton)).onPressed,
+      isNotNull,
+    );
 
-    await tester.tap(find.byTooltip('选评操作'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('调整顺序'));
+    await tester.tap(reorderButton);
     await tester.pumpAndSettle();
 
     expect(find.text('调整成图顺序'), findsOneWidget);
@@ -249,6 +286,20 @@ void main() {
     await tester.tap(find.byTooltip('完成调整'));
     await tester.pumpAndSettle();
     expect(find.text('调整成图顺序'), findsNothing);
+
+    await tester.tap(clearButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('评论故事卡'), findsNothing);
+    expect(find.text('精彩观点 · 原文未改写'), findsNothing);
+    expect(find.textContaining('互动较高'), findsNothing);
+    expect(find.text('主评论保留 · 已选0/5条跟评'), findsOneWidget);
+    expect(tester.widget<ChoiceChip>(highlightChip).selected, isFalse);
+    expect(tester.widget<TextButton>(_textButtonIn(clearButton)).onPressed, isNull);
+    expect(
+      tester.widget<TextButton>(_textButtonIn(reorderButton)).onPressed,
+      isNull,
+    );
   });
 
   testWidgets('智能选评固定在右下控制区且不进入截图预览', (tester) async {
@@ -367,6 +418,30 @@ void main() {
       ).hitTestable(),
       findsOneWidget,
     );
+    final smartControls = [
+      find.byKey(const Key('save-panel-smart-local')),
+      find.byKey(const Key('save-panel-smart-clear')),
+      find.byKey(const Key('save-panel-smart-reorder')),
+    ];
+    for (final control in smartControls) {
+      expect(control.hitTestable(), findsOneWidget);
+      final rect = tester.getRect(control);
+      expect(rect.width, greaterThanOrEqualTo(44));
+      expect(rect.height, greaterThanOrEqualTo(44));
+      expect(overlayRect.contains(rect.center), isTrue);
+    }
+    expect(
+      tester
+          .widget<TextButton>(_textButtonIn(smartControls[1]))
+          .onPressed,
+      isNotNull,
+    );
+    expect(
+      tester
+          .widget<TextButton>(_textButtonIn(smartControls[2]))
+          .onPressed,
+      isNotNull,
+    );
     for (final label in ['精彩观点', '正反讨论', '科普补充', '搞笑瞬间']) {
       final chip = find.ancestor(
         of: find.text(label),
@@ -433,6 +508,10 @@ void main() {
     expect(captured.count.toInt(), 2);
     expect(original.replies.length, 120);
   });
+}
+
+Finder _textButtonIn(Finder parent) {
+  return find.descendant(of: parent, matching: find.byType(TextButton));
 }
 
 Future<void> _openSavePanel(WidgetTester tester, ReplyInfo reply) async {

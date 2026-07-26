@@ -794,7 +794,13 @@ class _SavePanelState extends State<SavePanel> {
 
   Widget _buildSmartReplyPanel(ThemeData theme, ReplyInfo reply) {
     final mode = _smartReplyMode;
-    final title = mode?.label ?? '智能选评';
+    final actionStyle = TextButton.styleFrom(
+      minimumSize: const Size(44, 44),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      visualDensity: VisualDensity.compact,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      textStyle: theme.textTheme.labelSmall,
+    );
     return Material(
       key: const Key('save-panel-smart-overlay'),
       elevation: 3,
@@ -810,80 +816,52 @@ class _SavePanelState extends State<SavePanel> {
             SizedBox(
               height: 44,
               child: Row(
-                spacing: 6,
+                spacing: 4,
                 children: [
-                  Expanded(
-                    child: Tooltip(
-                      message: mode == SmartReplyMode.knowledge
-                          ? '科普补充只做文本规则推荐，不代表事实核验'
-                          : mode?.description ?? '选择分享目的',
-                      child: Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelMedium,
+                  const Expanded(
+                    child: SizedBox.expand(
+                      key: Key('save-panel-smart-local'),
+                      child: Tooltip(
+                        message: '本地分析，不上传评论',
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            spacing: 3,
+                            children: [
+                              Icon(Icons.lock_outline, size: 14),
+                              Text('本地'),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                  const Tooltip(
-                    message: '本地分析，不上传评论',
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      spacing: 3,
-                      children: [
-                        Icon(Icons.lock_outline, size: 14),
-                        Text('本地'),
-                      ],
+                  SizedBox.square(
+                    key: const Key('save-panel-smart-clear'),
+                    dimension: 44,
+                    child: TextButton(
+                      style: actionStyle,
+                      onPressed:
+                          _selectedReplyIds.isEmpty || _isActionInProgress
+                          ? null
+                          : _clearReplySelection,
+                      child: const Text('清空'),
                     ),
                   ),
-                  if (_selectedReplyIds.isNotEmpty)
-                    SizedBox.square(
-                      dimension: 44,
-                      child: PopupMenuButton<_SmartReplyPanelAction>(
-                        tooltip: '选评操作',
-                        padding: EdgeInsets.zero,
-                        iconSize: 20,
-                        onSelected: (action) {
-                          switch (action) {
-                            case _SmartReplyPanelAction.reorder:
-                              unawaited(_showReplyOrderSheet(reply));
-                              break;
-                            case _SmartReplyPanelAction.clear:
-                              _clearReplySelection();
-                              break;
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          PopupMenuItem(
-                            value: _SmartReplyPanelAction.reorder,
-                            enabled: _selectedReplyIds.length >= 2,
-                            child: const SizedBox(
-                              width: 128,
-                              child: Row(
-                                spacing: 12,
-                                children: [
-                                  Icon(Icons.reorder, size: 20),
-                                  Text('调整顺序'),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: _SmartReplyPanelAction.clear,
-                            child: SizedBox(
-                              width: 128,
-                              child: Row(
-                                spacing: 12,
-                                children: [
-                                  Icon(Icons.clear_all, size: 20),
-                                  Text('清空选择'),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                  SizedBox.square(
+                    key: const Key('save-panel-smart-reorder'),
+                    dimension: 44,
+                    child: TextButton(
+                      style: actionStyle,
+                      onPressed:
+                          _selectedReplyIds.length < 2 ||
+                              _isActionInProgress
+                          ? null
+                          : () => unawaited(_showReplyOrderSheet(reply)),
+                      child: const Text('调整'),
                     ),
+                  ),
                 ],
               ),
             ),
@@ -903,7 +881,9 @@ class _SavePanelState extends State<SavePanel> {
                           child: SizedBox(
                             height: 44,
                             child: Tooltip(
-                              message: item.description,
+                              message: item == SmartReplyMode.knowledge
+                                  ? '${item.description}；只做文本规则推荐，不代表事实核验'
+                                  : item.description,
                               child: ChoiceChip(
                                 label: SizedBox(
                                   width: double.infinity,
@@ -1367,8 +1347,6 @@ class _SavePanelState extends State<SavePanel> {
 enum _CoverType { def16_9, square }
 
 enum _PicAction { save, copy }
-
-enum _SmartReplyPanelAction { reorder, clear }
 
 extension _SmartReplyModeUi on SmartReplyMode {
   IconData get icon => switch (this) {
