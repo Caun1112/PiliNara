@@ -222,20 +222,23 @@ void main() {
     await _openSavePanel(tester, _smartReply());
 
     expect(find.text('智能选评'), findsOneWidget);
-    expect(find.text('本地分析'), findsOneWidget);
+    expect(find.byTooltip('本地分析，不上传评论'), findsOneWidget);
 
     await tester.tap(find.text('精彩观点'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('已按“精彩观点”选择 4 条，可继续点击评论增删。'),
-      findsOneWidget,
+    final highlightChip = find.ancestor(
+      of: find.text('精彩观点'),
+      matching: find.byType(ChoiceChip),
     );
+    expect(tester.widget<ChoiceChip>(highlightChip).selected, isTrue);
     expect(find.text('评论故事卡'), findsOneWidget);
     expect(find.text('精彩观点 · 原文未改写'), findsOneWidget);
     expect(find.text('主评论保留 · 已选4/5条跟评'), findsOneWidget);
     expect(find.textContaining('互动较高'), findsWidgets);
 
+    await tester.tap(find.byTooltip('选评操作'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('调整顺序'));
     await tester.pumpAndSettle();
 
@@ -246,6 +249,85 @@ void main() {
     await tester.tap(find.byTooltip('完成调整'));
     await tester.pumpAndSettle();
     expect(find.text('调整成图顺序'), findsNothing);
+  });
+
+  testWidgets('智能选评固定在右下控制区且不进入截图预览', (tester) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await _openSavePanel(tester, _smartReply());
+
+    final capture = find.byKey(const Key('save-panel-capture-boundary'));
+    final overlay = find.byKey(const Key('save-panel-smart-overlay'));
+    final modes = find.byKey(const Key('save-panel-smart-modes'));
+    final bottomActions = find.byKey(
+      const Key('save-panel-bottom-actions'),
+    );
+
+    expect(capture, findsOneWidget);
+    expect(overlay, findsOneWidget);
+    expect(modes, findsOneWidget);
+    expect(bottomActions, findsOneWidget);
+
+    final overlayRect = tester.getRect(overlay);
+    final modesRect = tester.getRect(modes);
+    final bottomActionsRect = tester.getRect(bottomActions);
+    expect(modesRect.left, greaterThanOrEqualTo(400 * 0.4));
+    expect(modesRect.width, lessThanOrEqualTo(400 * 0.6));
+    expect(modesRect.right, closeTo(bottomActionsRect.right - 16, 0.1));
+    expect(overlayRect.right, closeTo(400 - 8, 0.1));
+    expect(overlayRect.center.dy, greaterThan(400));
+    expect(overlayRect.bottom, lessThanOrEqualTo(bottomActionsRect.top));
+    expect(bottomActionsRect.top - overlayRect.bottom, lessThanOrEqualTo(16));
+    for (final label in ['精彩观点', '正反讨论', '科普补充', '搞笑瞬间']) {
+      expect(tester.getCenter(find.text(label)).dx, greaterThanOrEqualTo(160));
+    }
+    expect(
+      find.descendant(of: capture, matching: overlay),
+      findsNothing,
+    );
+
+    await tester.tap(find.text('精彩观点'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(of: capture, matching: find.text('评论故事卡')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('预览末条评论可滚动到智能选评浮层上方', (tester) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await _openSavePanel(tester, _longReply());
+    final overlay = find.byKey(const Key('save-panel-smart-overlay'));
+    final initialOverlayRect = tester.getRect(overlay);
+    final scrollableFinder = find.descendant(
+      of: find.byType(SingleChildScrollView),
+      matching: find.byType(Scrollable),
+    );
+    final position = tester.state<ScrollableState>(scrollableFinder).position;
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pumpAndSettle();
+
+    final overlayRect = tester.getRect(overlay);
+    expect(overlayRect.left, closeTo(initialOverlayRect.left, 0.1));
+    expect(overlayRect.top, closeTo(initialOverlayRect.top, 0.1));
+    expect(overlayRect.right, closeTo(initialOverlayRect.right, 0.1));
+    expect(overlayRect.bottom, closeTo(initialOverlayRect.bottom, 0.1));
+    final previewEnd = find.text('主评论保留 · 已选0/120条跟评');
+    expect(previewEnd.hitTestable(), findsOneWidget);
+    final previewEndRect = tester.getRect(previewEnd);
+    expect(previewEndRect.bottom, lessThanOrEqualTo(overlayRect.top));
   });
 
   testWidgets('智能选评在小屏和较大字体下不会布局溢出', (tester) async {
@@ -262,10 +344,41 @@ void main() {
     await tester.tap(find.text('精彩观点'));
     await tester.pumpAndSettle();
 
-    expect(find.text('精彩观点'), findsOneWidget);
-    expect(find.text('正反讨论'), findsOneWidget);
-    expect(find.text('科普补充'), findsOneWidget);
-    expect(find.text('搞笑瞬间'), findsOneWidget);
+    final overlayRect = tester.getRect(
+      find.byKey(const Key('save-panel-smart-overlay')),
+    );
+    final bottomActionsRect = tester.getRect(
+      find.byKey(const Key('save-panel-bottom-actions')),
+    );
+    expect(overlayRect.top, greaterThanOrEqualTo(0));
+    expect(overlayRect.bottom, lessThanOrEqualTo(bottomActionsRect.top));
+    final bottomActions = find.byKey(const Key('save-panel-bottom-actions'));
+    expect(
+      find.descendant(
+        of: bottomActions,
+        matching: find.byTooltip('保存'),
+      ).hitTestable(),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: bottomActions,
+        matching: find.byTooltip('复制图片'),
+      ).hitTestable(),
+      findsOneWidget,
+    );
+    for (final label in ['精彩观点', '正反讨论', '科普补充', '搞笑瞬间']) {
+      final chip = find.ancestor(
+        of: find.text(label),
+        matching: find.byType(ChoiceChip),
+      );
+      expect(chip, findsOneWidget);
+      expect(chip.hitTestable(), findsOneWidget);
+      expect(tester.widget<ChoiceChip>(chip).onSelected, isNotNull);
+      final rect = tester.getRect(chip);
+      expect(rect.left, greaterThanOrEqualTo(320 * 0.4));
+      expect(rect.right, lessThanOrEqualTo(320));
+    }
     expect(tester.takeException(), isNull);
   });
 
@@ -281,10 +394,11 @@ void main() {
     await tester.tap(find.text('精彩观点'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('已按“精彩观点”选择 2 条，可继续点击评论增删。'),
-      findsOneWidget,
+    final highlightChip = find.ancestor(
+      of: find.text('精彩观点'),
+      matching: find.byType(ChoiceChip),
     );
+    expect(tester.widget<ChoiceChip>(highlightChip).selected, isTrue);
     expect(find.text('主评论保留 · 已选2/5条跟评'), findsOneWidget);
   });
 

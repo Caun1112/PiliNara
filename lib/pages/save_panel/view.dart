@@ -794,108 +794,149 @@ class _SavePanelState extends State<SavePanel> {
 
   Widget _buildSmartReplyPanel(ThemeData theme, ReplyInfo reply) {
     final mode = _smartReplyMode;
+    final title = mode?.label ?? '智能选评';
     return Material(
-      type: MaterialType.transparency,
-      child: Container(
-        width: double.infinity,
-        color: theme.colorScheme.surfaceContainer,
-        padding: const EdgeInsets.all(12),
+      key: const Key('save-panel-smart-overlay'),
+      elevation: 3,
+      borderRadius: const BorderRadius.all(Radius.circular(12)),
+      clipBehavior: Clip.antiAlias,
+      color: theme.colorScheme.surfaceContainerHigh,
+      child: Padding(
+        padding: const EdgeInsets.all(8),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 10,
+          mainAxisSize: MainAxisSize.min,
+          spacing: 8,
           children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.auto_awesome_outlined,
-                  size: 20,
-                  color: theme.colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '智能选评',
-                    style: theme.textTheme.titleMedium,
-                  ),
-                ),
-                Icon(
-                  Icons.lock_outline,
-                  size: 15,
-                  color: theme.colorScheme.primary,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '本地分析',
-                  style: TextStyle(
-                    color: theme.colorScheme.primary,
-                    fontSize: theme.textTheme.labelMedium!.fontSize,
-                  ),
-                ),
-              ],
-            ),
-            Text(
-              mode == null
-                  ? '选择分享目的，优先推荐适合一屏分享的少量评论；质量不足时宁缺毋滥。'
-                  : '已按“${mode.label}”选择 ${_selectedReplyIds.length} 条，可继续点击评论增删。',
-              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final item in SmartReplyMode.values)
-                  Tooltip(
-                    message: item.description,
-                    child: ChoiceChip(
-                      avatar: Icon(item.icon, size: 18),
-                      label: Text(item.label),
-                      selected: mode == item,
-                      onSelected: _isActionInProgress
-                          ? null
-                          : (_) => _applySmartReplySelection(item),
+            SizedBox(
+              height: 44,
+              child: Row(
+                spacing: 6,
+                children: [
+                  Expanded(
+                    child: Tooltip(
+                      message: mode == SmartReplyMode.knowledge
+                          ? '科普补充只做文本规则推荐，不代表事实核验'
+                          : mode?.description ?? '选择分享目的',
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelMedium,
+                      ),
                     ),
                   ),
-              ],
-            ),
-            if (mode == SmartReplyMode.knowledge)
-              Text(
-                '科普补充只做文本规则推荐，不代表事实核验。',
-                style: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontSize: theme.textTheme.labelMedium!.fontSize,
-                ),
-              ),
-            if (_replyLoadIncomplete)
-              Text(
-                '完整回复加载不完整，推荐仅基于当前已加载评论。',
-                style: TextStyle(
-                  color: theme.colorScheme.error,
-                  fontSize: theme.textTheme.labelMedium!.fontSize,
-                ),
-              ),
-            if (_selectedReplyIds.isNotEmpty)
-              Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 4,
-                children: [
-                  Text(
-                    '当前已选 ${_selectedReplyIds.length} 条',
-                    style: theme.textTheme.labelLarge,
+                  const Tooltip(
+                    message: '本地分析，不上传评论',
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 3,
+                      children: [
+                        Icon(Icons.lock_outline, size: 14),
+                        Text('本地'),
+                      ],
+                    ),
                   ),
-                  TextButton.icon(
-                    onPressed: _selectedReplyIds.length < 2
-                        ? null
-                        : () => _showReplyOrderSheet(reply),
-                    icon: const Icon(Icons.reorder),
-                    label: const Text('调整顺序'),
-                  ),
-                  TextButton.icon(
-                    onPressed: _clearReplySelection,
-                    icon: const Icon(Icons.clear_all),
-                    label: const Text('清空'),
-                  ),
+                  if (_selectedReplyIds.isNotEmpty)
+                    SizedBox.square(
+                      dimension: 44,
+                      child: PopupMenuButton<_SmartReplyPanelAction>(
+                        tooltip: '选评操作',
+                        padding: EdgeInsets.zero,
+                        iconSize: 20,
+                        onSelected: (action) {
+                          switch (action) {
+                            case _SmartReplyPanelAction.reorder:
+                              unawaited(_showReplyOrderSheet(reply));
+                              break;
+                            case _SmartReplyPanelAction.clear:
+                              _clearReplySelection();
+                              break;
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: _SmartReplyPanelAction.reorder,
+                            enabled: _selectedReplyIds.length >= 2,
+                            child: const SizedBox(
+                              width: 128,
+                              child: Row(
+                                spacing: 12,
+                                children: [
+                                  Icon(Icons.reorder, size: 20),
+                                  Text('调整顺序'),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: _SmartReplyPanelAction.clear,
+                            child: SizedBox(
+                              width: 128,
+                              child: Row(
+                                spacing: 12,
+                                children: [
+                                  Icon(Icons.clear_all, size: 20),
+                                  Text('清空选择'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
+            ),
+            Column(
+              key: const Key('save-panel-smart-modes'),
+              spacing: 6,
+              children: [
+                for (final row in [
+                  SmartReplyMode.values.sublist(0, 2),
+                  SmartReplyMode.values.sublist(2, 4),
+                ])
+                  Row(
+                    spacing: 6,
+                    children: [
+                      for (final item in row)
+                        Expanded(
+                          child: SizedBox(
+                            height: 44,
+                            child: Tooltip(
+                              message: item.description,
+                              child: ChoiceChip(
+                                label: SizedBox(
+                                  width: double.infinity,
+                                  child: Text(
+                                    item.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: theme.textTheme.labelSmall,
+                                  ),
+                                ),
+                                selected: mode == item,
+                                showCheckmark: false,
+                                visualDensity: VisualDensity.compact,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                                labelPadding: const EdgeInsets.symmetric(
+                                  horizontal: 2,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                onSelected: _isActionInProgress
+                                    ? null
+                                    : (_) => _applySmartReplySelection(item),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+              ],
+            ),
           ],
         ),
       ),
@@ -977,6 +1018,8 @@ class _SavePanelState extends State<SavePanel> {
     final theme = Theme.of(context);
     final padding = MediaQuery.viewPaddingOf(context);
     final maxWidth = context.mediaQueryShortestSide;
+    final hasSmartReplyControls = !_isLoadingReplies && _item is ReplyInfo;
+    final previewBottomPadding = hasSmartReplyControls ? 256.0 : 80.0;
     late final coverSize = MediaQuery.textScalerOf(context).scale(65);
     return Stack(
       clipBehavior: .none,
@@ -988,35 +1031,33 @@ class _SavePanelState extends State<SavePanel> {
           hitTestBehavior: .opaque,
           padding: .only(
             top: 12 + padding.top,
-            bottom: 80 + padding.bottom,
+            bottom: previewBottomPadding + padding.bottom,
           ),
           child: Container(
             width: maxWidth,
             padding: const .symmetric(horizontal: 12),
-            child: RepaintBoundary(
-              key: boundaryKey,
-              child: Container(
-                clipBehavior: .hardEdge,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  borderRadius: const .all(.circular(12)),
-                ),
-                child: AnimatedSize(
-                  curve: Curves.easeInOut,
-                  alignment: .topCenter,
-                  duration: _isCapturing
-                      ? Duration.zero
-                      : const Duration(milliseconds: 255),
-                  child: Column(
-                    mainAxisSize: .min,
-                    crossAxisAlignment: .start,
-                    children: [
-                      if (!_isCapturing &&
-                          !_isLoadingReplies &&
-                          _item is ReplyInfo)
-                        _buildSmartReplyPanel(theme, _item as ReplyInfo),
-                      _buildStoryCardHeader(theme),
-                      _isLoadingReplies
+            child: KeyedSubtree(
+              key: const Key('save-panel-capture-boundary'),
+              child: RepaintBoundary(
+                key: boundaryKey,
+                child: Container(
+                  clipBehavior: .hardEdge,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    borderRadius: const .all(.circular(12)),
+                  ),
+                  child: AnimatedSize(
+                    curve: Curves.easeInOut,
+                    alignment: .topCenter,
+                    duration: _isCapturing
+                        ? Duration.zero
+                        : const Duration(milliseconds: 255),
+                    child: Column(
+                      mainAxisSize: .min,
+                      crossAxisAlignment: .start,
+                      children: [
+                        _buildStoryCardHeader(theme),
+                        _isLoadingReplies
                           ? const Padding(
                               padding: EdgeInsets.symmetric(vertical: 48),
                               child: Center(
@@ -1199,13 +1240,23 @@ class _SavePanelState extends State<SavePanel> {
                               ],
                             )
                           : const SizedBox(height: 12),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
         ),
+        if (!_isScrolling &&
+            !_isCapturing &&
+            hasSmartReplyControls)
+          Positioned(
+            right: max(8.0, padding.right),
+            bottom: 80 + padding.bottom,
+            width: min(360.0, maxWidth * 0.6),
+            child: _buildSmartReplyPanel(theme, _item as ReplyInfo),
+          ),
         if (!_isScrolling) Positioned(
           left: 0,
           right: 0,
@@ -1230,6 +1281,7 @@ class _SavePanelState extends State<SavePanel> {
               child: Align(
                 alignment: Alignment.centerRight,
                 child: FractionallySizedBox(
+                  key: const Key('save-panel-bottom-actions'),
                   widthFactor: 0.55,
                   child: LayoutBuilder(
                     builder: (context, constraints) {
@@ -1315,6 +1367,8 @@ class _SavePanelState extends State<SavePanel> {
 enum _CoverType { def16_9, square }
 
 enum _PicAction { save, copy }
+
+enum _SmartReplyPanelAction { reorder, clear }
 
 extension _SmartReplyModeUi on SmartReplyMode {
   IconData get icon => switch (this) {
