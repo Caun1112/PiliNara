@@ -8,6 +8,7 @@ import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/flutter/pop_scope.dart';
 import 'package:PiliPlus/common/widgets/flutter/popup_menu.dart';
+import 'package:PiliPlus/common/widgets/global_back_button.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/keep_alive_wrapper.dart';
 import 'package:PiliPlus/common/widgets/route_aware_mixin.dart';
@@ -71,7 +72,7 @@ import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/theme_utils.dart';
 import 'package:extended_nested_scroll_view/extended_nested_scroll_view.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, visibleForTesting;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemChrome;
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
@@ -79,28 +80,6 @@ import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
 import 'package:screen_brightness_platform_interface/screen_brightness_platform_interface.dart';
-
-const double _videoFloatingBackButtonOffset = 312;
-const double _videoFloatingBackButtonSize = 56;
-
-@visibleForTesting
-double calculateVideoFloatingBackButtonBottom({
-  required double height,
-  required double safeTop,
-  required double safeBottom,
-}) {
-  final desiredBottom = safeBottom +
-      kFloatingActionButtonMargin +
-      _videoFloatingBackButtonOffset;
-  final maxVisibleBottom = max(
-    0.0,
-    height -
-        safeTop -
-        kFloatingActionButtonMargin -
-        _videoFloatingBackButtonSize,
-  );
-  return min(desiredBottom, maxVisibleBottom);
-}
 
 class VideoDetailPageV extends StatefulWidget {
   const VideoDetailPageV({super.key});
@@ -1895,8 +1874,7 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
           if (shouldShow)
             Positioned(
               right: padding.right + kFloatingActionButtonMargin,
-              // /videoV 专用按钮：高屏在当前 232 基础上再上移 80，矮屏避免越出顶部。
-              bottom: calculateVideoFloatingBackButtonBottom(
+              bottom: calculateFloatingBackButtonBottom(
                 height: maxHeight,
                 safeTop: padding.top,
                 safeBottom: padding.bottom,

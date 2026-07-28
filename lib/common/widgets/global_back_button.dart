@@ -1,5 +1,26 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+
+const double _floatingBackButtonVerticalRatio = 0.55;
+const double _floatingBackButtonSize = 56;
+
+double calculateFloatingBackButtonBottom({
+  required double height,
+  required double safeTop,
+  required double safeBottom,
+}) {
+  final minVisibleBottom = safeBottom + kFloatingActionButtonMargin;
+  final maxVisibleBottom = max(
+    minVisibleBottom,
+    height - safeTop - kFloatingActionButtonMargin - _floatingBackButtonSize,
+  );
+  final desiredBottom =
+      height * (1 - _floatingBackButtonVerticalRatio) -
+      _floatingBackButtonSize / 2;
+  return desiredBottom.clamp(minVisibleBottom, maxVisibleBottom);
+}
 
 abstract interface class GlobalBackButtonRoute {
   bool get showGlobalBackButton;
@@ -60,12 +81,17 @@ class GlobalBackButtonOverlay extends StatelessWidget {
         }
 
         final padding = MediaQuery.viewPaddingOf(context);
+        final height = MediaQuery.sizeOf(context).height;
         return Stack(
           children: [
             child!,
             Positioned(
               right: padding.right + kFloatingActionButtonMargin,
-              bottom: padding.bottom + kFloatingActionButtonMargin + 100,
+              bottom: calculateFloatingBackButtonBottom(
+                height: height,
+                safeTop: padding.top,
+                safeBottom: padding.bottom,
+              ),
               child: FloatingActionButton(
                 heroTag: 'global-back-button',
                 tooltip: '返回',
