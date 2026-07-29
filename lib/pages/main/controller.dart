@@ -10,6 +10,7 @@ import 'package:PiliPlus/models/common/nav_bar_config.dart';
 import 'package:PiliPlus/pages/dynamics/controller.dart';
 import 'package:PiliPlus/pages/home/controller.dart';
 import 'package:PiliPlus/pages/mine/view.dart';
+import 'package:PiliPlus/pages/search/view.dart' show focusMainNavigationSearch;
 import 'package:PiliPlus/services/account_service.dart';
 import 'package:PiliPlus/utils/extension/get_ext.dart';
 import 'package:PiliPlus/utils/feed_back.dart';
@@ -322,6 +323,11 @@ class MainController extends GetxController
         }
       }
       _lastSelectTime = now;
+    }
+    if (currentNav == NavigationBarType.search) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        focusMainNavigationSearch();
+      });
     }
   }
 

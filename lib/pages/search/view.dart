@@ -17,16 +17,24 @@ import 'package:PiliPlus/utils/utils.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+const mainNavigationSearchPageKey = GlobalObjectKey<SearchPageState>(
+  'main-navigation-search-page',
+);
+
+void focusMainNavigationSearch() {
+  mainNavigationSearchPageKey.currentState?.requestSearchFocus();
+}
+
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key, this.autofocus = true});
 
   final bool autofocus;
 
   @override
-  State<SearchPage> createState() => _SearchPageState();
+  State<SearchPage> createState() => SearchPageState();
 }
 
-class _SearchPageState extends State<SearchPage> {
+class SearchPageState extends State<SearchPage> {
   final _tag = Utils.generateRandomString(6);
   late final SSearchController _searchController;
   late ThemeData theme;
@@ -48,6 +56,10 @@ class _SearchPageState extends State<SearchPage> {
     theme = Theme.of(context);
     padding = MediaQuery.viewPaddingOf(context);
     isPortrait = MediaQuery.sizeOf(context).isPortrait;
+  }
+
+  void requestSearchFocus() {
+    _searchController.searchFocusNode.requestFocus();
   }
 
   @override

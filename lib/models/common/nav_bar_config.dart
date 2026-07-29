@@ -28,7 +28,7 @@ enum NavigationBarType implements EnumWithLabel {
     '搜索',
     Icon(Icons.search_outlined, size: 24),
     Icon(Icons.search, size: 24),
-    SearchPage(autofocus: false),
+    SearchPage(key: mainNavigationSearchPageKey, autofocus: false),
   ),
   ;
 
