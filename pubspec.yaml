@@ -180,6 +180,8 @@ dependencies:
       ref: main
 
 dependency_overrides:
+  # 2.6.0 的 FFI 原生资产在 TrollStore Lite 重签后无法通过 AMFI 校验。
+  path_provider_foundation: 2.5.1
   clipboard:
     git:
       url: https://github.com/dongfengweixiao/flutter_clipboard.git
