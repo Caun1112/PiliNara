@@ -89,7 +89,9 @@ class FloatingNavigationBar extends StatelessWidget {
         ),
         child: SizedBox(
           height: _kNavigationHeight,
-          width: width ?? destinations.length * kFloatingNavigationDestinationWidth,
+          width:
+              width ??
+              destinations.length * kFloatingNavigationDestinationWidth,
           child: DecoratedBox(
             decoration: ShapeDecoration(
               color: ElevationOverlay.applySurfaceTint(

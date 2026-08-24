@@ -67,6 +67,13 @@ List<SettingsModel> get playSettings => [
     defaultVal: true,
   ),
   const SwitchModel(
+    title: '锁定按钮显示在右侧',
+    subtitle: '开启后锁定按钮移至右侧，与截图按钮一同垂直居中排列',
+    leading: Icon(Icons.keyboard_double_arrow_right),
+    setKey: SettingBoxKey.showFsLockBtnRight,
+    defaultVal: false,
+  ),
+  const SwitchModel(
     title: '全屏显示截图按钮',
     leading: Icon(Icons.photo_camera_outlined),
     setKey: SettingBoxKey.showFsScreenshotBtn,
@@ -230,6 +237,13 @@ List<SettingsModel> get playSettings => [
     subtitle: '开启后延长至30秒，便于屏幕阅读器滑动切换控件焦点',
     leading: Icon(Icons.timer_outlined),
     setKey: SettingBoxKey.enableLongShowControl,
+    defaultVal: false,
+  ),
+  const SwitchModel(
+    title: '手动切集后显示播放控件',
+    subtitle: '点击上一集、下一集或分集列表切换后保持控件显示',
+    leading: Icon(Icons.touch_app_outlined),
+    setKey: SettingBoxKey.showControlsOnManualEpisodeChange,
     defaultVal: false,
   ),
   if (PlatformUtils.isMobile)

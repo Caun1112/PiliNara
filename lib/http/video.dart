@@ -37,6 +37,7 @@ import 'package:PiliPlus/utils/recommend_filter.dart';
 import 'package:PiliPlus/utils/request_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
+import 'package:PiliPlus/utils/subtitle_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:PiliPlus/utils/parse_int.dart';
 import 'package:PiliPlus/utils/wbi_sign.dart';
@@ -146,7 +147,7 @@ abstract final class VideoHttp {
     );
 
     if (res.data['code'] == 0) {
-      List<RcmdVideoItemAppModel> list = <RcmdVideoItemAppModel>[];
+      final list = <RcmdVideoItemAppModel>[];
       final bool removeBlockedRcmd = Pref.removeBlockedRcmd;
       for (final i in res.data['data']['items']) {
         final upMid = safeToInt(i['args']?['up_id']);
@@ -372,22 +373,37 @@ abstract final class VideoHttp {
     }
   }
 
-  // 投币
+  // 投币（视频 avtype: 1，专栏 avtype: 2；专栏必须传 upid 即作者 mid）
   static Future<LoadingState<void>> coinVideo({
-    required String bvid,
+    required Object aid,
     required int multiply,
     int selectLike = 0,
+    int avtype = 1,
+    Object? upid,
+    String? referer,
   }) async {
+    final hasAccessKey = !Accounts.main.accessKey.isNullOrEmpty;
+    final options = Options(
+      contentType: Headers.formUrlEncodedContentType,
+      headers: hasAccessKey
+          ? null
+          : {
+              'origin': 'https://www.bilibili.com',
+              'referer': ?referer,
+              'user-agent': BrowserUa.pc,
+            },
+    );
     final res = await Request().post(
-      Api.coinVideo,
+      hasAccessKey ? Api.coinVideo : Api.coinVideoWeb,
       data: {
-        'aid': IdUtils.bv2av(bvid).toString(),
-        // 'bvid': bvid,
+        'aid': aid.toString(),
         'multiply': multiply.toString(),
         'select_like': selectLike.toString(),
-        // 'csrf': Accounts.main.csrf,
+        'avtype': avtype.toString(),
+        if (upid != null) 'upid': upid.toString(),
+        if (!hasAccessKey) 'csrf': Accounts.main.csrf,
       },
-      options: Options(contentType: Headers.formUrlEncodedContentType),
+      options: options,
     );
     if (res.data['code'] == 0) {
       return const Success(null);
@@ -458,13 +474,30 @@ abstract final class VideoHttp {
     required String bvid,
     required bool type,
   }) async {
+    final hasAccessKey = !Accounts.main.accessKey.isNullOrEmpty;
+    final options = Options(
+      contentType: Headers.formUrlEncodedContentType,
+      headers: hasAccessKey
+          ? null
+          : {
+              'origin': 'https://www.bilibili.com',
+              'referer': 'https://www.bilibili.com/video/$bvid',
+              'user-agent': BrowserUa.pc,
+            },
+    );
     final res = await Request().post(
-      Api.likeVideo,
-      data: {'aid': IdUtils.bv2av(bvid).toString(), 'like': type ? '0' : '1'},
-      options: Options(contentType: Headers.formUrlEncodedContentType),
+      hasAccessKey ? Api.likeVideo : Api.likeVideoWeb,
+      data: hasAccessKey
+          ? {'aid': IdUtils.bv2av(bvid).toString(), 'like': type ? '0' : '1'}
+          : {
+              'aid': IdUtils.bv2av(bvid).toString(),
+              'like': type ? '1' : '2',
+              'csrf': Accounts.main.csrf,
+            },
+      options: options,
     );
     if (res.data['code'] == 0) {
-      return Success(res.data['data']['toast']);
+      return Success(res.data['data']?['toast'] as String? ?? '点赞成功');
     } else {
       return Error(res.data['message']);
     }
@@ -856,33 +889,20 @@ abstract final class VideoHttp {
     }
   }
 
-  static String _subtitleTimecode(num seconds) {
-    int h = seconds ~/ 3600;
-    seconds %= 3600;
-    int m = seconds ~/ 60;
-    seconds %= 60;
-    String sms = seconds.toStringAsFixed(3).padLeft(6, '0');
-    return h == 0
-        ? "${m.toString().padLeft(2, '0')}:$sms"
-        : "${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:$sms";
-  }
-
-  static String processList(List list) {
-    final sb = StringBuffer('WEBVTT\n\n')
-      ..writeAll(
-        list.map(
-          (item) =>
-              '${_subtitleTimecode(item['from'])} --> ${_subtitleTimecode(item['to'])}\n${item['content'].trim()}',
-        ),
-        '\n\n',
-      );
-    return sb.toString();
-  }
-
-  static Future<String?> vttSubtitles(String subtitleUrl) async {
+  static Future<String?> vttSubtitles(
+    String subtitleUrl, {
+    SubtitleFormat format = .vtt,
+  }) async {
     final res = await Request().get("https:$subtitleUrl");
     if (res.data?['body'] case List list) {
-      return compute<List, String>(processList, list);
+      switch (format) {
+        case .json:
+          throw UnimplementedError();
+        case .vtt:
+          return compute<List, String>(SubtitleUtils.json2Vtt, list);
+        case .srt:
+          return compute<List, String>(SubtitleUtils.json2Srt, list);
+      }
     }
     return null;
   }

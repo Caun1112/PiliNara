@@ -20,12 +20,16 @@ import 'dart:io' show Platform;
 import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/badge.dart';
+import 'package:PiliPlus/common/widgets/flutter/popup_menu.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/image_grid/image_grid_builder.dart';
+import 'package:PiliPlus/common/widgets/image_viewer/gallery_viewer.dart';
+import 'package:PiliPlus/common/widgets/scaffold/mini_scaffold.dart';
 import 'package:PiliPlus/models/common/image_preview_type.dart';
 import 'package:PiliPlus/utils/extension/context_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/extension/size_ext.dart';
+import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/image_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
@@ -94,13 +98,17 @@ class ImageGridView extends StatelessWidget {
         !fullScreen &&
         Get.currentRoute.startsWith(_regex) &&
         !context.mediaQuerySize.isPortrait) {
-      final scaffoldState = Scaffold.maybeOf(context);
+      final scaffoldState = MiniScaffold.maybeOf(context);
       if (scaffoldState != null) {
         onViewImage?.call();
-        PageUtils.onHorizontalPreviewState(
-          scaffoldState,
-          imgList,
-          index,
+        scaffoldState.showBottomSheet(
+          constraints: const BoxConstraints(),
+          (context) => GalleryViewer(
+            sources: imgList,
+            initIndex: index,
+            quality: GlobalData().imgQuality,
+          ),
+          enableDrag: false,
         );
         return;
       }
@@ -145,38 +153,39 @@ class ImageGridView extends StatelessWidget {
     showMenu(
       context: context,
       position: PageUtils.menuPosition(offset),
+      clipBehavior: Clip.antiAlias,
       items: [
         if (PlatformUtils.isMobile)
-          PopupMenuItem(
+          CustomPopupMenuItem<void>(
             height: 42,
             onTap: () => ImageUtils.onShareImg(item.url),
             child: const Text('分享', style: TextStyle(fontSize: 14)),
           ),
-        PopupMenuItem(
+        CustomPopupMenuItem<void>(
           height: 42,
           onTap: () => ImageUtils.copyImg(item.url),
           child: const Text('复制图片', style: TextStyle(fontSize: 14)),
         ),
-        PopupMenuItem(
+        CustomPopupMenuItem<void>(
           height: 42,
           onTap: () => ImageUtils.downloadImg([item.url]),
           child: const Text('保存图片', style: TextStyle(fontSize: 14)),
         ),
         if (PlatformUtils.isDesktop)
-          PopupMenuItem(
+          CustomPopupMenuItem<void>(
             height: 42,
             onTap: () => PageUtils.launchURL(item.url),
             child: const Text('网页打开', style: TextStyle(fontSize: 14)),
           )
         else if (picArr.length > 1)
-          PopupMenuItem(
+          CustomPopupMenuItem<void>(
             height: 42,
             onTap: () =>
                 ImageUtils.downloadImg(picArr.map((item) => item.url).toList()),
             child: const Text('保存全部', style: TextStyle(fontSize: 14)),
           ),
         if (item.isLivePhoto)
-          PopupMenuItem(
+          CustomPopupMenuItem<void>(
             height: 42,
             onTap: () => ImageUtils.downloadLivePhoto(
               url: item.url,

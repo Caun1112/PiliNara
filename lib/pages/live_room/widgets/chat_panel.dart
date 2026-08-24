@@ -1,6 +1,8 @@
 import 'package:PiliPlus/common/widgets/flutter/popup_menu.dart';
 import 'package:PiliPlus/common/widgets/gesture/tap_gesture_recognizer.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
+import 'package:PiliPlus/common/widgets/scroll_physics.dart'
+    show platformClampingPhysics;
 import 'package:PiliPlus/http/live.dart';
 import 'package:PiliPlus/models_new/live/live_danmaku/danmaku_msg.dart';
 import 'package:PiliPlus/models_new/live/live_superchat/item.dart';
@@ -54,7 +56,7 @@ class LiveRoomChatPanel extends StatelessWidget {
             separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemCount: liveRoomController.builtLength =
                 liveRoomController.messages.length,
-            physics: const ClampingScrollPhysics(),
+            physics: platformClampingPhysics,
             itemBuilder: (_, index) {
               final item = liveRoomController.messages[index];
               if (item is DanmakuMsg) {
@@ -326,6 +328,7 @@ class LiveRoomChatPanel extends StatelessWidget {
     showMenu(
       context: context,
       position: RelativeRect.fromLTRB(dx, dy, dx, 0),
+      clipBehavior: Clip.antiAlias,
       items: <PopupMenuEntry<Never>>[
         CustomPopupMenuItem(
           height: 38,
@@ -335,7 +338,7 @@ class LiveRoomChatPanel extends StatelessWidget {
           ),
         ),
         const CustomPopupMenuDivider(height: 1),
-        PopupMenuItem(
+        CustomPopupMenuItem(
           height: 38,
           onTap: () => Utils.copyText(Utils.jsonEncoder.convert(item.toJson())),
           child: const Text(
@@ -343,7 +346,7 @@ class LiveRoomChatPanel extends StatelessWidget {
             style: TextStyle(fontSize: 13),
           ),
         ),
-        PopupMenuItem(
+        CustomPopupMenuItem(
           height: 38,
           onTap: () => Get.toNamed('/member?mid=${item.extra.mid}'),
           child: const Text(
@@ -351,7 +354,7 @@ class LiveRoomChatPanel extends StatelessWidget {
             style: TextStyle(fontSize: 13),
           ),
         ),
-        PopupMenuItem(
+        CustomPopupMenuItem(
           height: 38,
           onTap: () => onAtUser(item),
           child: const Text(
@@ -359,7 +362,7 @@ class LiveRoomChatPanel extends StatelessWidget {
             style: TextStyle(fontSize: 13),
           ),
         ),
-        PopupMenuItem(
+        CustomPopupMenuItem(
           height: 38,
           onTap: () async {
             if (!liveRoomController.isLogin) return;
@@ -379,7 +382,7 @@ class LiveRoomChatPanel extends StatelessWidget {
             style: TextStyle(fontSize: 13),
           ),
         ),
-        PopupMenuItem(
+        CustomPopupMenuItem(
           height: 38,
           onTap: () => HeaderControl.reportLiveDanmaku(
             context,

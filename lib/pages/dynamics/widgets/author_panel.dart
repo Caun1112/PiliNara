@@ -4,8 +4,8 @@ import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/dialog/report.dart';
-import 'package:PiliPlus/common/widgets/extra_hit_test_widget.dart';
 import 'package:PiliPlus/common/widgets/pendant_avatar.dart';
+import 'package:PiliPlus/common/widgets/translucent_row.dart';
 import 'package:PiliPlus/http/constants.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/reply.dart';
@@ -98,67 +98,68 @@ class AuthorPanel extends StatelessWidget {
         );
       }
     }
-    Widget header = GestureDetector(
-      onTap: moduleAuthor.type == 'AUTHOR_TYPE_NORMAL'
-          ? () {
-              feedBack();
-              Get.toNamed('/member?mid=${moduleAuthor.mid}');
-            }
-          : null,
-      child: ExtraHitTestWidget(
-        width: 50,
-        child: Row(
-          spacing: 10,
+    final children = [
+      PendantAvatar(
+        size: 40,
+        moduleAuthor.face,
+        pendantImage: moduleAuthor.pendant?.image,
+      ),
+      Flexible(
+        child: Column(
+          crossAxisAlignment: .start,
           children: [
-            PendantAvatar(
-              size: 40,
-              moduleAuthor.face,
-              pendantImage: moduleAuthor.pendant?.image,
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            Text.rich(
+              maxLines: 1,
+              overflow: .ellipsis,
+              TextSpan(
                 children: [
-                  Text.rich(
-                    maxLines: 1,
-                    overflow: .ellipsis,
-                    TextSpan(
-                      children: [
-                        TextSpan(
-                          text: moduleAuthor.name!,
-                          style: TextStyle(
-                            color:
-                                moduleAuthor.vip != null &&
-                                    moduleAuthor.vip!.status > 0 &&
-                                    moduleAuthor.vip!.type == 2
-                                ? theme.colorScheme.vipColor
-                                : theme.colorScheme.onSurface,
-                            fontSize: theme.textTheme.titleSmall!.fontSize,
-                          ),
-                        ),
-                        if (GlobalData().remarkMids[moduleAuthor.mid]
-                            case final String remark
-                            when remark.isNotEmpty)
-                          TextSpan(
-                            text: '（$remark）',
-                            style: TextStyle(
-                              color: theme.colorScheme.primary,
-                              fontSize:
-                                  (theme.textTheme.titleSmall!.fontSize ?? 14) -
-                                  1,
-                            ),
-                          ),
-                      ],
+                  TextSpan(
+                    text: moduleAuthor.name!,
+                    style: TextStyle(
+                      color:
+                          moduleAuthor.vip != null &&
+                              moduleAuthor.vip!.status > 0 &&
+                              moduleAuthor.vip!.type == 2
+                          ? theme.colorScheme.vipColor
+                          : theme.colorScheme.onSurface,
+                      fontSize: theme.textTheme.titleSmall!.fontSize,
                     ),
                   ),
-                  ?pubTs,
+                  if (GlobalData().remarkMids[moduleAuthor.mid]
+                      case final String remark
+                      when remark.isNotEmpty)
+                    TextSpan(
+                      text: '（$remark）',
+                      style: TextStyle(
+                        color: theme.colorScheme.primary,
+                        fontSize:
+                            (theme.textTheme.titleSmall!.fontSize ?? 14) - 1,
+                      ),
+                    ),
                 ],
               ),
             ),
+            ?pubTs,
           ],
         ),
       ),
-    );
+    ];
+    Widget header;
+    if (moduleAuthor.type == 'AUTHOR_TYPE_NORMAL') {
+      header = GestureDetector(
+        onTap: () => {
+          feedBack(),
+          Get.toNamed('/member?mid=${moduleAuthor.mid}'),
+        },
+        child: TranslucentRow(
+          spacing: 10,
+          extraWidth: 50,
+          children: children,
+        ),
+      );
+    } else {
+      header = Row(spacing: 10, children: children);
+    }
     Widget? moreBtn = isSave
         ? null
         : SizedBox(
@@ -512,41 +513,37 @@ class AuthorPanel extends StatelessWidget {
                               final reply = response.upReply;
                               final enableReply = reply.status == 1;
 
-                              return AlertDialog(
+                              return SimpleDialog(
                                 clipBehavior: .hardEdge,
                                 contentPadding: const .symmetric(vertical: 12),
-                                content: Column(
-                                  mainAxisSize: .min,
-                                  crossAxisAlignment: .start,
-                                  children: [
-                                    ListTile(
-                                      dense: true,
-                                      enabled: selection.canModify,
-                                      title: Text(
-                                        '${enableSelection ? '停止' : '开启'}评论精选',
-                                        style: const TextStyle(fontSize: 14),
-                                      ),
-                                      onTap: () {
-                                        Get.back();
-                                        onSetReplySubject!(
-                                          enableSelection ? 2 : 1,
-                                        );
-                                      },
+                                children: [
+                                  ListTile(
+                                    dense: true,
+                                    enabled: selection.canModify,
+                                    title: Text(
+                                      '${enableSelection ? '停止' : '开启'}评论精选',
+                                      style: const TextStyle(fontSize: 14),
                                     ),
-                                    ListTile(
-                                      dense: true,
-                                      enabled: reply.canModify,
-                                      title: Text(
-                                        '${enableReply ? '关闭' : '恢复'}评论',
-                                        style: const TextStyle(fontSize: 14),
-                                      ),
-                                      onTap: () {
-                                        Get.back();
-                                        onSetReplySubject!(enableReply ? 3 : 4);
-                                      },
+                                    onTap: () {
+                                      Get.back();
+                                      onSetReplySubject!(
+                                        enableSelection ? 2 : 1,
+                                      );
+                                    },
+                                  ),
+                                  ListTile(
+                                    dense: true,
+                                    enabled: reply.canModify,
+                                    title: Text(
+                                      '${enableReply ? '关闭' : '恢复'}评论',
+                                      style: const TextStyle(fontSize: 14),
                                     ),
-                                  ],
-                                ),
+                                    onTap: () {
+                                      Get.back();
+                                      onSetReplySubject!(enableReply ? 3 : 4);
+                                    },
+                                  ),
+                                ],
                               );
                             },
                           );
@@ -585,32 +582,29 @@ class AuthorPanel extends StatelessWidget {
 
                       showDialog(
                         context: context,
-                        builder: (context) => AlertDialog(
+                        builder: (context) => SimpleDialog(
                           clipBehavior: Clip.hardEdge,
                           contentPadding: const .symmetric(vertical: 12),
-                          content: Column(
-                            mainAxisSize: .min,
-                            children: [
-                              ListTile(
-                                dense: true,
-                                enabled: isPrivate,
-                                title: const Text(
-                                  '所有用户可见',
-                                  style: TextStyle(fontSize: 14),
-                                ),
-                                onTap: onTap,
+                          children: [
+                            ListTile(
+                              dense: true,
+                              enabled: isPrivate,
+                              title: const Text(
+                                '所有用户可见',
+                                style: TextStyle(fontSize: 14),
                               ),
-                              ListTile(
-                                dense: true,
-                                enabled: !isPrivate,
-                                title: const Text(
-                                  '仅自己可见',
-                                  style: TextStyle(fontSize: 14),
-                                ),
-                                onTap: onTap,
+                              onTap: onTap,
+                            ),
+                            ListTile(
+                              dense: true,
+                              enabled: !isPrivate,
+                              title: const Text(
+                                '仅自己可见',
+                                style: TextStyle(fontSize: 14),
                               ),
-                            ],
-                          ),
+                              onTap: onTap,
+                            ),
+                          ],
                         ),
                       );
                     },

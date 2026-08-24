@@ -855,8 +855,7 @@ class _SavePanelState extends State<SavePanel> {
                     child: TextButton(
                       style: actionStyle,
                       onPressed:
-                          _selectedReplyIds.length < 2 ||
-                              _isActionInProgress
+                          _selectedReplyIds.length < 2 || _isActionInProgress
                           ? null
                           : () => unawaited(_showReplyOrderSheet(reply)),
                       child: const Text('调整'),
@@ -1038,188 +1037,188 @@ class _SavePanelState extends State<SavePanel> {
                       children: [
                         _buildStoryCardHeader(theme),
                         _isLoadingReplies
-                          ? const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 48),
-                              child: Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  spacing: 12,
-                                  children: [
-                                    CircularProgressIndicator(),
-                                    Text('正在加载完整回复'),
-                                  ],
+                            ? const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 48),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    spacing: 12,
+                                    children: [
+                                      CircularProgressIndicator(),
+                                      Text('正在加载完整回复'),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                            )
-                          : switch (_item) {
-                              ReplyInfo reply => IgnorePointer(
-                                ignoring: _isCapturing || _isActionInProgress,
-                                child: ReplyItemGrpc(
-                                  replyItem: reply,
-                                  replyLevel: 0,
-                                  needDivider: false,
-                                  upMid: widget.upMid,
-                                  showFullImages: showFullImages,
-                                  showReplies: true,
-                                  selectionMode: !_isCapturing,
-                                  isReplySelected: _isReplySelected,
-                                  onToggleReply: _toggleReply,
-                                  selectionReason: _selectionReason,
-                                  fullWidthReplies: true,
+                              )
+                            : switch (_item) {
+                                ReplyInfo reply => IgnorePointer(
+                                  ignoring: _isCapturing || _isActionInProgress,
+                                  child: ReplyItemGrpc(
+                                    replyItem: reply,
+                                    replyLevel: 0,
+                                    needDivider: false,
+                                    upMid: widget.upMid,
+                                    showFullImages: showFullImages,
+                                    showReplies: true,
+                                    selectionMode: !_isCapturing,
+                                    isReplySelected: _isReplySelected,
+                                    onToggleReply: _toggleReply,
+                                    selectionReason: _selectionReason,
+                                    fullWidthReplies: true,
+                                  ),
                                 ),
-                              ),
-                              DynamicItemModel dyn => IgnorePointer(
-                                child: DynamicPanel(
-                                  item: dyn,
-                                  isDetail: true,
-                                  isSave: true,
+                                DynamicItemModel dyn => IgnorePointer(
+                                  child: DynamicPanel(
+                                    item: dyn,
+                                    isDetail: true,
+                                    isSave: true,
+                                  ),
                                 ),
+                                _ => throw UnsupportedError(_item.toString()),
+                              },
+                        if (_replyLoadIncomplete)
+                          Padding(
+                            padding: const .fromLTRB(12, 0, 12, 12),
+                            child: Text(
+                              '完整回复加载不完整，已保留当前可用内容',
+                              style: TextStyle(
+                                color: theme.colorScheme.error,
                               ),
-                              _ => throw UnsupportedError(_item.toString()),
-                            },
-                      if (_replyLoadIncomplete)
-                        Padding(
-                          padding: const .fromLTRB(12, 0, 12, 12),
-                          child: Text(
-                            '完整回复加载不完整，已保留当前可用内容',
-                            style: TextStyle(
-                              color: theme.colorScheme.error,
                             ),
                           ),
-                        ),
-                      if (cover?.isNotEmpty == true &&
-                          title?.isNotEmpty == true)
-                        Container(
-                          height: 81,
-                          clipBehavior: Clip.hardEdge,
-                          margin: const .symmetric(horizontal: 12),
-                          padding: const .all(8),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.onInverseSurface,
-                            borderRadius: const .all(.circular(8)),
-                          ),
-                          child: Row(
-                            spacing: 10,
-                            children: [
-                              NetworkImgLayer(
-                                src: cover!,
-                                height: coverSize,
-                                width: coverType == .def16_9
-                                    ? coverSize * Style.aspectRatio16x9
-                                    : coverSize,
-                                quality: 100,
-                                borderRadius: const .all(.circular(6)),
-                              ),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: .start,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        '$title\n',
-                                        maxLines: 2,
-                                        overflow: .ellipsis,
-                                      ),
-                                    ),
-                                    if (pubdate != null)
-                                      Text(
-                                        DateFormatUtils.format(
-                                          pubdate,
-                                          format: dateFormat,
-                                        ),
-                                        style: TextStyle(
-                                          color: theme.colorScheme.outline,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      showBottom
-                          ? Stack(
-                              clipBehavior: .none,
+                        if (cover?.isNotEmpty == true &&
+                            title?.isNotEmpty == true)
+                          Container(
+                            height: 81,
+                            margin: const .symmetric(horizontal: 12),
+                            padding: const .all(8),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.onInverseSurface,
+                              borderRadius: const .all(.circular(8)),
+                            ),
+                            child: Row(
+                              spacing: 10,
                               children: [
-                                if (uri.isNotEmpty)
-                                  Align(
-                                    alignment: .centerRight,
-                                    child: Row(
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            mainAxisSize: .min,
-                                            crossAxisAlignment: .end,
-                                            spacing: 4,
-                                            children: [
-                                              if (uname?.isNotEmpty == true)
-                                                Text(
-                                                  '@$uname',
-                                                  maxLines: 1,
-                                                  overflow: .ellipsis,
-                                                  style: TextStyle(
-                                                    color: theme
-                                                        .colorScheme
-                                                        .primary,
-                                                  ),
-                                                ),
-                                              Text(
-                                                '识别二维码，$viewType$itemType',
-                                                textAlign: .end,
-                                                style: TextStyle(
-                                                  color: theme
-                                                      .colorScheme
-                                                      .onSurfaceVariant,
-                                                ),
-                                              ),
-                                              Text(
-                                                DateFormatUtils.longFormatDs
-                                                    .format(.now()),
-                                                textAlign: .end,
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  color:
-                                                      theme.colorScheme.outline,
-                                                ),
-                                              ),
-                                            ],
+                                NetworkImgLayer(
+                                  src: cover!,
+                                  height: coverSize,
+                                  width: coverType == .def16_9
+                                      ? coverSize * Style.aspectRatio16x9
+                                      : coverSize,
+                                  quality: 100,
+                                  borderRadius: const .all(.circular(6)),
+                                ),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: .start,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          '$title\n',
+                                          maxLines: 2,
+                                          overflow: .ellipsis,
+                                        ),
+                                      ),
+                                      if (pubdate != null)
+                                        Text(
+                                          DateFormatUtils.format(
+                                            pubdate,
+                                            format: dateFormat,
+                                          ),
+                                          style: TextStyle(
+                                            color: theme.colorScheme.outline,
                                           ),
                                         ),
-                                        GestureDetector(
-                                          onTap: () => Utils.copyText(uri),
-                                          child: Container(
-                                            width: 88,
-                                            height: 88,
-                                            margin: const .all(12),
-                                            padding: const .all(3),
-                                            color: theme.isDark
-                                                ? Colors.white
-                                                : theme.colorScheme.surface,
-                                            child: PrettyQrView.data(
-                                              data: uri,
-                                              decoration:
-                                                  const PrettyQrDecoration(
-                                                    shape:
-                                                        PrettyQrSquaresSymbol(),
-                                                  ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                Align(
-                                  alignment: .centerLeft,
-                                  child: Image.asset(
-                                    Assets.logo2,
-                                    width: 100,
-                                    cacheWidth: 100.cacheSize(context),
-                                    color: theme.colorScheme.onSurfaceVariant,
+                                    ],
                                   ),
                                 ),
                               ],
-                            )
-                          : const SizedBox(height: 12),
+                            ),
+                          ),
+                        showBottom
+                            ? Stack(
+                                clipBehavior: .none,
+                                children: [
+                                  if (uri.isNotEmpty)
+                                    Align(
+                                      alignment: .centerRight,
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              mainAxisSize: .min,
+                                              crossAxisAlignment: .end,
+                                              spacing: 4,
+                                              children: [
+                                                if (uname?.isNotEmpty == true)
+                                                  Text(
+                                                    '@$uname',
+                                                    maxLines: 1,
+                                                    overflow: .ellipsis,
+                                                    style: TextStyle(
+                                                      color: theme
+                                                          .colorScheme
+                                                          .primary,
+                                                    ),
+                                                  ),
+                                                Text(
+                                                  '识别二维码，$viewType$itemType',
+                                                  textAlign: .end,
+                                                  style: TextStyle(
+                                                    color: theme
+                                                        .colorScheme
+                                                        .onSurfaceVariant,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  DateFormatUtils.longFormatDs
+                                                      .format(.now()),
+                                                  textAlign: .end,
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    color: theme
+                                                        .colorScheme
+                                                        .outline,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          GestureDetector(
+                                            onTap: () => Utils.copyText(uri),
+                                            child: Container(
+                                              width: 88,
+                                              height: 88,
+                                              margin: const .all(12),
+                                              padding: const .all(3),
+                                              color: theme.isDark
+                                                  ? Colors.white
+                                                  : theme.colorScheme.surface,
+                                              child: PrettyQrView.data(
+                                                data: uri,
+                                                decoration:
+                                                    const PrettyQrDecoration(
+                                                      shape:
+                                                          PrettyQrSquaresSymbol(),
+                                                    ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  Align(
+                                    alignment: .centerLeft,
+                                    child: Image.asset(
+                                      Assets.logo2,
+                                      width: 100,
+                                      cacheWidth: 100.cacheSize(context),
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : const SizedBox(height: 12),
                       ],
                     ),
                   ),
@@ -1228,110 +1227,109 @@ class _SavePanelState extends State<SavePanel> {
             ),
           ),
         ),
-        if (!_isScrolling &&
-            !_isCapturing &&
-            hasSmartReplyControls)
+        if (!_isScrolling && !_isCapturing && hasSmartReplyControls)
           Positioned(
             right: max(8.0, padding.right),
             bottom: 80 + padding.bottom,
             width: min(360.0, maxWidth * 0.6),
             child: _buildSmartReplyPanel(theme, _item as ReplyInfo),
           ),
-        if (!_isScrolling) Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: DecoratedBox(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: .topCenter,
-                end: .bottomCenter,
-                colors: [
-                  Colors.transparent,
-                  Colors.black54,
-                ],
+        if (!_isScrolling)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: .topCenter,
+                  end: .bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black54,
+                  ],
+                ),
               ),
-            ),
-            child: Padding(
-              padding: EdgeInsets.only(
-                left: padding.left,
-                right: padding.right,
-                bottom: 25 + padding.bottom,
-              ),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: FractionallySizedBox(
-                  key: const Key('save-panel-bottom-actions'),
-                  widthFactor: 0.55,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final buttonSize = min(42.0, constraints.maxWidth / 5);
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          iconButton(
-                            size: buttonSize,
-                            tooltip: showBottom ? '隐藏二维码' : '显示二维码',
-                            context: context,
-                            icon: showBottom
-                                ? const Icon(Icons.visibility_off)
-                                : const Icon(Icons.visibility),
-                            onPressed: _isActionInProgress
-                                ? null
-                                : () => setState(() {
-                                    showBottom = !showBottom;
-                                  }),
-                          ),
-                          iconButton(
-                            size: buttonSize,
-                            tooltip: '关闭',
-                            icon: const Icon(Icons.clear),
-                            onPressed: _isActionInProgress ? null : Get.back,
-                            bgColor: theme.colorScheme.onInverseSurface,
-                            iconColor: theme.colorScheme.onSurfaceVariant,
-                          ),
-                          iconButton(
-                            size: buttonSize,
-                            tooltip: '保存',
-                            context: context,
-                            icon: const Icon(Icons.save_alt),
-                            onPressed: _isActionInProgress
-                                ? null
-                                : _onPicAction,
-                          ),
-                          iconButton(
-                            size: buttonSize,
-                            tooltip: showFullImages ? '切换为集成展示' : '切换为全图展示',
-                            context: context,
-                            icon: Icon(
-                              showFullImages
-                                  ? Icons.grid_view_outlined
-                                  : Icons.view_agenda_outlined,
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: padding.left,
+                  right: padding.right,
+                  bottom: 25 + padding.bottom,
+                ),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: FractionallySizedBox(
+                    key: const Key('save-panel-bottom-actions'),
+                    widthFactor: 0.55,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final buttonSize = min(42.0, constraints.maxWidth / 5);
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            iconButton(
+                              size: buttonSize,
+                              tooltip: showBottom ? '隐藏二维码' : '显示二维码',
+                              context: context,
+                              icon: showBottom
+                                  ? const Icon(Icons.visibility_off)
+                                  : const Icon(Icons.visibility),
+                              onPressed: _isActionInProgress
+                                  ? null
+                                  : () => setState(() {
+                                      showBottom = !showBottom;
+                                    }),
                             ),
-                            onPressed: _isActionInProgress
-                                ? null
-                                : () => setState(() {
-                                    showFullImages = !showFullImages;
-                                  }),
-                          ),
-                          iconButton(
-                            size: buttonSize,
-                            tooltip: '复制图片',
-                            context: context,
-                            icon: const Icon(Icons.copy_outlined),
-                            onPressed: _isActionInProgress
-                                ? null
-                                : () => _onPicAction(_PicAction.copy),
-                          ),
-                        ],
-                      );
-                    },
+                            iconButton(
+                              size: buttonSize,
+                              tooltip: '关闭',
+                              icon: const Icon(Icons.clear),
+                              onPressed: _isActionInProgress ? null : Get.back,
+                              bgColor: theme.colorScheme.onInverseSurface,
+                              iconColor: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            iconButton(
+                              size: buttonSize,
+                              tooltip: '保存',
+                              context: context,
+                              icon: const Icon(Icons.save_alt),
+                              onPressed: _isActionInProgress
+                                  ? null
+                                  : _onPicAction,
+                            ),
+                            iconButton(
+                              size: buttonSize,
+                              tooltip: showFullImages ? '切换为集成展示' : '切换为全图展示',
+                              context: context,
+                              icon: Icon(
+                                showFullImages
+                                    ? Icons.grid_view_outlined
+                                    : Icons.view_agenda_outlined,
+                              ),
+                              onPressed: _isActionInProgress
+                                  ? null
+                                  : () => setState(() {
+                                      showFullImages = !showFullImages;
+                                    }),
+                            ),
+                            iconButton(
+                              size: buttonSize,
+                              tooltip: '复制图片',
+                              context: context,
+                              icon: const Icon(Icons.copy_outlined),
+                              onPressed: _isActionInProgress
+                                  ? null
+                                  : () => _onPicAction(_PicAction.copy),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
         if (_isScrolling)
           Positioned.fill(
             child: Listener(

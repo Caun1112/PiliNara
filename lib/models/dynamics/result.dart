@@ -8,6 +8,7 @@ import 'package:PiliPlus/models/model_owner.dart';
 import 'package:PiliPlus/models_new/live/live_feed_index/watched_show.dart';
 import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/global_data.dart';
+import 'package:PiliPlus/utils/parse_bool.dart';
 import 'package:PiliPlus/utils/parse_int.dart';
 import 'package:PiliPlus/utils/parse_string.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
@@ -67,6 +68,10 @@ class DynamicsDataModel {
       final whitelistMids = GlobalData().whitelistMids;
       for (final e in list) {
         DynamicItemModel item = DynamicItemModel.fromJson(e);
+        if (filterBlockedUsers &&
+            dynamicsBlockedMids.contains(item.modules.moduleAuthor?.mid)) {
+          continue;
+        }
         if (whitelistMids.containsKey(item.modules.moduleAuthor?.mid)) {
           items!.add(item);
           continue;
@@ -100,10 +105,6 @@ class DynamicsDataModel {
         }
         if (filterBan &&
             tempBannedList!.contains(item.modules.moduleAuthor?.mid)) {
-          continue;
-        }
-        if (filterBlockedUsers &&
-            dynamicsBlockedMids.contains(item.modules.moduleAuthor?.mid)) {
           continue;
         }
         items!.add(item);
@@ -163,8 +164,8 @@ class DynamicItemModel {
 
   bool get hasNoPrivilegeDynamic =>
       (basic?.isOnlyFans ?? false) &&
-          modules.moduleDynamic?.major?.type == 'MAJOR_TYPE_BLOCKED' &&
-          modules.moduleDynamic?.major?.blocked != null;
+      modules.moduleDynamic?.major?.type == 'MAJOR_TYPE_BLOCKED' &&
+      modules.moduleDynamic?.major?.blocked != null;
 
   bool get hasOnlyFansVideoBadge =>
       (basic?.isOnlyFans ?? false) &&
@@ -462,9 +463,10 @@ class ModuleAuthorModel extends Avatar {
     }
     type = json['type'];
     if (PendantAvatar.showDecorate) {
-      decorate = json['decorate'] == null
-          ? null
-          : Decorate.fromJson(json['decorate']);
+      final decorate = json['decorate'] ?? json['decoration_card'];
+      if (decorate != null) {
+        this.decorate = Decorate.fromJson(decorate);
+      }
     } else {
       pendant = null;
     }
@@ -499,7 +501,7 @@ class Fan {
 
   factory Fan.fromJson(Map<String, dynamic> json) => Fan(
     color: json["color"],
-    numStr: json["num_str"],
+    numStr: json["num_str"] ?? json['num_desc'],
   );
 }
 
@@ -1380,7 +1382,7 @@ class DynamicStat {
     if (safeToInt(json['count']) case final count? when count > 0) {
       this.count = count;
     }
-    status = json['status'];
+    status = safeToBool(json['status'], () => 'STATE_LIKE');
   }
 }
 

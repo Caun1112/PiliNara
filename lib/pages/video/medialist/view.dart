@@ -34,7 +34,8 @@ class MediaListPanel extends CommonSlidePage {
   });
 
   final RxList<MediaListItemModel> mediaList;
-  final ValueChanged<BaseEpisodeItem> onChangeEpisode;
+  final Future<bool> Function(BaseEpisodeItem episode, {bool manual})
+  onChangeEpisode;
   final String? panelTitle;
   final String bvid;
   final VoidCallback loadMoreMedia;
@@ -58,7 +59,7 @@ class _MediaListPanelState extends State<MediaListPanel>
     final bvid = widget.bvid;
     final bvIndex = widget.mediaList.indexWhere((item) => item.bvid == bvid);
     _controller = ScrollController(
-      initialScrollOffset: bvIndex <= 0 ? 0 : bvIndex * 100.0 + 7,
+      initialScrollOffset: bvIndex <= 0 ? 0 : bvIndex * 112.0 + 7,
     );
   }
 
@@ -68,44 +69,48 @@ class _MediaListPanelState extends State<MediaListPanel>
       color: theme.colorScheme.surface,
       child: Column(
         children: [
-          AppBar(
-            primary: false,
-            toolbarHeight: 45,
-            automaticallyImplyLeading: false,
-            titleSpacing: 16,
-            title: Text(widget.panelTitle ?? '稍后再看'),
-            backgroundColor: Colors.transparent,
-            actions: [
-              iconButton(
-                iconSize: 20,
-                tooltip: widget.listOrder.label,
-                icon: switch (widget.listOrder) {
-                  ListOrder.desc => const Icon(MdiIcons.sortDescending),
-                  ListOrder.shuffle => const Icon(Icons.shuffle),
-                  _ => const Icon(MdiIcons.sortAscending),
-                },
-                onPressed: () {
-                  Get.back();
-                  widget.onReverse();
-                },
-              ),
-              iconButton(
-                iconSize: 20,
-                tooltip: '关闭',
-                icon: const Icon(Icons.close),
-                onPressed: Get.back,
-              ),
-              const SizedBox(width: 14),
-            ],
-            shape: Border(
-              bottom: BorderSide(
-                color: theme.colorScheme.outline.withValues(alpha: 0.1),
+          Container(
+            height: 45,
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.1),
+                ),
               ),
             ),
+            child: Row(
+              children: [
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    widget.panelTitle ?? '稍后再看',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+                iconButton(
+                  iconSize: 20,
+                  tooltip: widget.listOrder.label,
+                  icon: switch (widget.listOrder) {
+                    ListOrder.desc => const Icon(MdiIcons.sortDescending),
+                    ListOrder.shuffle => const Icon(Icons.shuffle),
+                    _ => const Icon(MdiIcons.sortAscending),
+                  },
+                  onPressed: () {
+                    Get.back();
+                    widget.onReverse();
+                  },
+                ),
+                iconButton(
+                  iconSize: 20,
+                  tooltip: '关闭',
+                  icon: const Icon(Icons.close),
+                  onPressed: Get.back,
+                ),
+                const SizedBox(width: 14),
+              ],
+            ),
           ),
-          Expanded(
-            child: enableSlide ? slideList(theme) : buildList(theme),
-          ),
+          Expanded(child: enableSlide ? slideList(theme) : buildList(theme)),
         ],
       ),
     );
@@ -134,7 +139,7 @@ class _MediaListPanelState extends State<MediaListPanel>
           ),
           sliver: Obx(
             () => SliverFixedExtentList.builder(
-              itemExtent: 100,
+              itemExtent: 112,
               itemCount: widget.mediaList.length,
               itemBuilder: (context, index) {
                 if (index == widget.mediaList.length - 1 &&
@@ -169,7 +174,7 @@ class _MediaListPanelState extends State<MediaListPanel>
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
       child: SizedBox(
-        height: 98,
+        height: 110,
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
@@ -179,7 +184,7 @@ class _MediaListPanelState extends State<MediaListPanel>
                 return;
               }
               Get.back();
-              widget.onChangeEpisode(item);
+              widget.onChangeEpisode(item, manual: true);
             },
             onLongPress: onLongPress,
             onSecondaryTap: PlatformUtils.isMobile ? null : onLongPress,
@@ -199,8 +204,8 @@ class _MediaListPanelState extends State<MediaListPanel>
                         children: [
                           NetworkImgLayer(
                             src: item.cover,
-                            width: 140.8,
-                            height: 88,
+                            width: 160,
+                            height: 100,
                           ),
                           if (item.badge?.isNotEmpty == true)
                             PBadge(

@@ -5,7 +5,8 @@ import 'package:PiliPlus/common/widgets/button/more_btn.dart';
 import 'package:PiliPlus/common/widgets/flutter/refresh_indicator.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/loading_widget.dart';
-import 'package:PiliPlus/common/widgets/scroll_physics.dart';
+import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
+import 'package:PiliPlus/common/widgets/scroll_physics.dart' show tabBarView;
 import 'package:PiliPlus/common/widgets/view_safe_area.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/models/common/fav_type.dart';
@@ -56,6 +57,7 @@ class _PgcPageState extends State<PgcPage> with AutomaticKeepAliveClientMixin {
     super.build(context);
     final ThemeData theme = Theme.of(context);
     return refreshIndicator(
+      key: controller.refreshKey,
       onRefresh: controller.onRefresh,
       child: CustomScrollView(
         controller: controller.scrollController,
@@ -248,8 +250,7 @@ class _PgcPageState extends State<PgcPage> with AutomaticKeepAliveClientMixin {
                 ];
                 List<int> types = const [102, 2, 5, 3, 7];
                 Get.to(
-                  Scaffold(
-                    resizeToAvoidBottomInset: false,
+                  SimpleScaffold(
                     appBar: AppBar(title: const Text('索引')),
                     body: DefaultTabController(
                       length: types.length,

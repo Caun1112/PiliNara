@@ -1,4 +1,4 @@
-import 'dart:async' show Timer;
+import 'dart:async' show StreamSubscription, Timer;
 import 'dart:convert' show jsonDecode, utf8;
 import 'dart:io' show Platform, File;
 import 'dart:typed_data' show Uint8List;
@@ -7,6 +7,7 @@ import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
 import 'package:PiliPlus/common/widgets/dialog/report.dart';
+import 'package:PiliPlus/common/widgets/dialog/simple_dialog_option.dart';
 import 'package:PiliPlus/common/widgets/marquee.dart';
 import 'package:PiliPlus/http/danmaku.dart';
 import 'package:PiliPlus/http/danmaku_block.dart';
@@ -16,7 +17,6 @@ import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models/common/super_resolution_type.dart';
 import 'package:PiliPlus/models/common/video/audio_quality.dart';
-import 'package:PiliPlus/models/common/video/cdn_type.dart';
 import 'package:PiliPlus/models/common/video/video_decode_type.dart';
 import 'package:PiliPlus/models/common/video/video_quality.dart';
 import 'package:PiliPlus/models/video/play/url.dart';
@@ -25,8 +25,8 @@ import 'package:PiliPlus/pages/common/common_intro_controller.dart';
 import 'package:PiliPlus/pages/danmaku/danmaku_model.dart';
 import 'package:PiliPlus/pages/setting/models/play_settings.dart'
     show showPlayerVolumeDialog;
+import 'package:PiliPlus/pages/setting/widgets/cdn_select_dialog.dart';
 import 'package:PiliPlus/pages/setting/widgets/popup_item.dart';
-import 'package:PiliPlus/pages/setting/widgets/select_dialog.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/local/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/pgc/controller.dart';
@@ -51,8 +51,8 @@ import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
-import 'package:PiliPlus/utils/subtitle_utils.dart';
 import 'package:PiliPlus/utils/storage_utils.dart';
+import 'package:PiliPlus/utils/subtitle_utils.dart';
 import 'package:PiliPlus/utils/utils.dart';
 import 'package:PiliPlus/utils/video_utils.dart';
 import 'package:battery_plus/battery_plus.dart';
@@ -70,6 +70,23 @@ import 'package:hive_ce/hive.dart';
 import 'package:intl/intl.dart' show DateFormat;
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:media_kit/media_kit.dart' show NativePlayer;
+
+class _BatteryInfo {
+  const _BatteryInfo({
+    required this.level,
+    required this.state,
+  });
+
+  final int level;
+  final BatteryState state;
+
+  IconData? get icon => switch (state) {
+    BatteryState.charging => Icons.battery_charging_full,
+    BatteryState.connectedNotCharging => Icons.power,
+    BatteryState.full => Icons.battery_full,
+    _ => null,
+  };
+}
 
 mixin TimeBatteryMixin<T extends StatefulWidget> on State<T> {
   PlPlayerController get plPlayerController;
@@ -93,6 +110,7 @@ mixin TimeBatteryMixin<T extends StatefulWidget> on State<T> {
 
   @override
   void dispose() {
+    stopBatteryInfoListener();
     stopClock();
     super.dispose();
   }
@@ -121,22 +139,80 @@ mixin TimeBatteryMixin<T extends StatefulWidget> on State<T> {
     _showCurrTime = !isPortrait && (isFullScreen || !horizontalScreen);
     if (!_showCurrTime) {
       stopClock();
+      stopBatteryInfoListener();
     }
   }
 
   late final _battery = Battery();
-  late final RxnInt _batteryLevel = RxnInt();
+  late final Rxn<_BatteryInfo> _batteryInfo = Rxn<_BatteryInfo>();
+  StreamSubscription<BatteryState>? _batterySubscription;
   late final _showBatteryLevel = Pref.showBatteryLevel;
-  void getBatteryLevelIfNeeded() {
-    if (!_showCurrTime || !_showBatteryLevel) return;
-    EasyThrottle.throttle(
-      'getBatteryLevel$hashCode',
-      const Duration(seconds: 30),
-      () async {
-        try {
-          _batteryLevel.value = await _battery.batteryLevel;
-        } catch (_) {}
+
+  Future<void> _updateBatteryInfo([BatteryState? state]) async {
+    try {
+      final batteryState = state ?? await _battery.batteryState;
+      final batteryLevel = await _battery.batteryLevel;
+      if (mounted && _showCurrTime && _showBatteryLevel) {
+        _batteryInfo.value = _BatteryInfo(
+          level: batteryLevel,
+          state: batteryState,
+        );
+      }
+    } catch (_) {}
+  }
+
+  bool _startBatteryInfoListenerIfNeeded() {
+    if (!_showCurrTime || !_showBatteryLevel) {
+      stopBatteryInfoListener();
+      return false;
+    }
+    if (_batterySubscription != null) return false;
+    _batterySubscription = _battery.onBatteryStateChanged.listen(
+      (state) {
+        if (mounted) {
+          _updateBatteryInfo(state);
+        }
       },
+      onError: (_) {},
+    );
+    _updateBatteryInfo();
+    return true;
+  }
+
+  void stopBatteryInfoListener() {
+    _batterySubscription?.cancel();
+    _batterySubscription = null;
+  }
+
+  void updateBatteryInfoIfNeeded() {
+    if (!_showCurrTime || !_showBatteryLevel) {
+      stopBatteryInfoListener();
+      return;
+    }
+    if (_startBatteryInfoListenerIfNeeded()) return;
+    if (_batteryInfo.value == null) {
+      _updateBatteryInfo();
+      return;
+    }
+    EasyThrottle.throttle(
+      'updateBatteryInfo$hashCode',
+      const Duration(seconds: 30),
+      _updateBatteryInfo,
+    );
+  }
+
+  Widget _batteryStatusIcon(_BatteryInfo batteryInfo) {
+    final icon = batteryInfo.icon;
+    if (icon == null) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(right: 3),
+      child: Icon(
+        icon,
+        color: Colors.white,
+        size: 13,
+      ),
     );
   }
 
@@ -146,16 +222,22 @@ mixin TimeBatteryMixin<T extends StatefulWidget> on State<T> {
         if (_showBatteryLevel) ...[
           Obx(
             () {
-              final batteryLevel = _batteryLevel.value;
-              if (batteryLevel == null) {
+              final batteryInfo = _batteryInfo.value;
+              if (batteryInfo == null) {
                 return const SizedBox.shrink();
               }
-              return Text(
-                '$batteryLevel%',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                ),
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _batteryStatusIcon(batteryInfo),
+                  Text(
+                    '${batteryInfo.level}%',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
               );
             },
           ),
@@ -371,9 +453,9 @@ class HeaderControlState extends State<HeaderControl>
         return Padding(
           padding: const EdgeInsets.all(12),
           child: Material(
-            clipBehavior: Clip.hardEdge,
+            clipBehavior: Clip.antiAlias,
             color: theme.colorScheme.surface,
-            borderRadius: const BorderRadius.all(Radius.circular(12)),
+            borderRadius: const BorderRadius.all(Radius.circular(16)),
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 14),
               children: [
@@ -490,21 +572,22 @@ class HeaderControlState extends State<HeaderControl>
                     title: const Text('CDN 设置', style: titleStyle),
                     leading: const Icon(MdiIcons.cloudPlusOutline, size: 20),
                     subtitle: Text(
-                      '当前：${VideoUtils.cdnService.desc}，无法播放请切换',
+                      '当前：${VideoUtils.effectiveCdnDesc()}，无法播放请切换',
                       style: subTitleStyle,
                     ),
                     onTap: () async {
                       Get.back();
-                      final result = await showDialog<CDNService>(
+                      final result = await showDialog<CdnSelectResult>(
                         context: context,
                         builder: (context) => CdnSelectDialog(
                           sample: videoInfo.dash?.video?.firstOrNull,
                         ),
                       );
                       if (result != null) {
-                        VideoUtils.cdnService = result;
-                        setting.put(SettingBoxKey.CDNService, result.name);
-                        SmartDialog.showToast('已设置为 ${result.desc}，正在重载视频');
+                        await applyCdnSelectResult(
+                          result,
+                          toastSuffix: '，正在重载视频',
+                        );
                         videoDetailCtr.queryVideoUrl(fromReset: true);
                       }
                     },
@@ -560,7 +643,17 @@ class HeaderControlState extends State<HeaderControl>
                               onTap: () {
                                 plPlayerController.onlyPlayAudio.value =
                                     !onlyPlayAudio;
-                                widget.videoDetailCtr.playerInit();
+                                final player =
+                                    plPlayerController.videoPlayerController!;
+                                if (onlyPlayAudio &&
+                                    player.state.tracks.video.length <= 2) {
+                                  videoDetailCtr.playerInit();
+                                } else {
+                                  player.setProperty(
+                                    'file-local-options/vid',
+                                    onlyPlayAudio ? 'auto' : 'no',
+                                  );
+                                }
                               },
                               text: " 听视频 ",
                               selectStatus: onlyPlayAudio,
@@ -694,7 +787,7 @@ class HeaderControlState extends State<HeaderControl>
                           if (!mounted) return;
                           String sub = buffer.toString();
                           sub = await compute<List, String>(
-                            VideoHttp.processList,
+                            SubtitleUtils.json2Vtt,
                             jsonDecode(sub)['body'],
                           );
                           if (!mounted) return;
@@ -767,7 +860,8 @@ class HeaderControlState extends State<HeaderControl>
     required NativePlayer player,
   }) {
     final hwdec = player.getProperty('hwdec-current');
-    final volume = player.getProperty('volume').subLength(3);
+    final volume =
+        '${(double.tryParse(player.getProperty('volume')) ?? 0).toStringAsFixed(1)}%';
     showDialog(
       context: context,
       builder: (context) {
@@ -779,9 +873,7 @@ class HeaderControlState extends State<HeaderControl>
           content: Material(
             type: MaterialType.transparency,
             child: ListTileTheme(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 24,
-              ),
+              contentPadding: const .symmetric(horizontal: 24),
               child: SingleChildScrollView(
                 child: Column(
                   children: [
@@ -930,7 +1022,7 @@ class HeaderControlState extends State<HeaderControl>
                     final isCurr = currentVideoQa.code == item.quality;
                     return ListTile(
                       dense: true,
-                      onTap: () async {
+                      onTap: () {
                         if (isCurr) {
                           return;
                         }
@@ -945,14 +1037,7 @@ class HeaderControlState extends State<HeaderControl>
                         SmartDialog.showToast("画质已变为：${newQa.desc}");
 
                         // update
-                        if (!plPlayerController.tempPlayerConf) {
-                          setting.put(
-                            await ConnectivityUtils.isWiFi
-                                ? SettingBoxKey.defaultVideoQa
-                                : SettingBoxKey.defaultVideoQaCellular,
-                            quality,
-                          );
-                        }
+                        videoDetailCtr.persistVideoQa(quality);
                       },
                       // 可能包含会员解锁画质
                       enabled: index >= totalQaSam - usefulQaSam,
@@ -1061,28 +1146,26 @@ class HeaderControlState extends State<HeaderControl>
 
   // 选择解码格式
   void showSetDecodeFormats() {
-    final VideoItem firstVideo = videoDetailCtr.firstVideo;
+    final firstCode = videoDetailCtr.firstVideo.quality.code;
     // 当前视频可用的解码格式
-    final List<FormatItem> videoFormat = videoInfo.supportFormats!;
-    final List<String>? list = videoFormat
-        .firstWhere((FormatItem e) => e.quality == firstVideo.quality.code)
-        .codecs;
+    final videoFormat = videoInfo.supportFormats!;
+
+    final list = videoFormat.firstWhere((e) => e.quality == firstCode).codecs;
     if (list == null) {
       SmartDialog.showToast('当前视频不支持选择解码格式');
       return;
     }
 
     // 当前选中的解码格式
-    final VideoDecodeFormatType currentDecodeFormats =
-        videoDetailCtr.currentDecodeFormats;
+    final curCodecs = videoDetailCtr.currentDecodeFormats.codes;
     showBottomSheet(
       (context, setState) {
-        final theme = Theme.of(context);
+        final colorScheme = ColorScheme.of(context);
         return Padding(
           padding: const EdgeInsets.all(12),
           child: Material(
             clipBehavior: Clip.hardEdge,
-            color: theme.colorScheme.surface,
+            color: colorScheme.surface,
             borderRadius: const BorderRadius.all(Radius.circular(12)),
             child: Column(
               children: [
@@ -1100,30 +1183,22 @@ class HeaderControlState extends State<HeaderControl>
                         itemBuilder: (context, index) {
                           final item = list[index];
                           final format = VideoDecodeFormatType.fromString(item);
-                          final isCurr = currentDecodeFormats.codes.any(
-                            item.startsWith,
-                          );
+                          final isCurr = curCodecs.any(item.startsWith);
                           return ListTile(
                             dense: true,
                             onTap: () {
-                              if (isCurr) {
-                                return;
-                              }
+                              if (isCurr) return;
                               Get.back();
                               videoDetailCtr
                                 ..currentDecodeFormats = format
                                 ..updatePlayer();
+                              SmartDialog.showToast("解码已变为：${format.name}");
                             },
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                            ),
+                            contentPadding: const .symmetric(horizontal: 20),
                             title: Text(format.description),
                             subtitle: Text(item, style: subTitleStyle),
                             trailing: isCurr
-                                ? Icon(
-                                    Icons.done,
-                                    color: theme.colorScheme.primary,
-                                  )
+                                ? Icon(Icons.done, color: colorScheme.primary)
                                 : null,
                           );
                         },
@@ -1139,94 +1214,143 @@ class HeaderControlState extends State<HeaderControl>
     );
   }
 
+  Future<Uint8List?> _loadSubtitleJsonBytes(Subtitle item) async {
+    final url = item.subtitleUrl;
+    if (url == null || url.isEmpty) return null;
+    final res = await Request.dio.get<Uint8List>(
+      url.http2https,
+      options: Options(
+        responseType: ResponseType.bytes,
+        headers: Constants.baseHeaders,
+        extra: {'account': const NoAccount()},
+      ),
+    );
+    if (res.statusCode != 200) return null;
+    return Uint8List.fromList(
+      Request.responseBytesDecoder(
+        res.data!,
+        res.headers.map,
+      ),
+    );
+  }
+
+  Future<Uint8List?> _loadSubtitleVttBytes(int index, Subtitle item) async {
+    var subtitle = videoDetailCtr.vttSubtitles[index];
+    if (subtitle == null) {
+      final url = item.subtitleUrl;
+      if (url == null || url.isEmpty) return null;
+      final res = await VideoHttp.vttSubtitles(url);
+      if (res == null) return null;
+      subtitle = (isData: true, id: res);
+      videoDetailCtr.vttSubtitles[index] = subtitle;
+    }
+    if (subtitle.isData) {
+      return Uint8List.fromList(utf8.encode(subtitle.id));
+    }
+    return File(subtitle.id).readAsBytes();
+  }
+
   void onExportSubtitle() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        clipBehavior: Clip.hardEdge,
-        contentPadding: const EdgeInsets.fromLTRB(0, 12, 0, 12),
-        title: const Text('保存字幕'),
-        content: SingleChildScrollView(
-          child: Column(
-            children: videoDetailCtr.subtitles
-                .map(
-                  (item) => ListTile(
-                    dense: true,
-                    onTap: () async {
-                      Get.back();
-                      final format = await showDialog<String>(
-                        context: context,
-                        builder: (context) => SimpleDialog(
-                          title: const Text('选择格式'),
-                          children: [
-                            SimpleDialogOption(
-                              onPressed: () => Get.back(result: 'json'),
-                              child: const Text('JSON'),
-                            ),
-                            SimpleDialogOption(
-                              onPressed: () => Get.back(result: 'srt'),
-                              child: const Text('SRT'),
-                            ),
-                          ],
+      builder: (context) {
+        SubtitleFormat format = .vtt;
+        final subtitles = videoDetailCtr.subtitles;
+        final secondary = ColorScheme.of(context).secondary;
+        return SimpleDialog(
+          clipBehavior: .hardEdge,
+          contentPadding: const .only(bottom: 12),
+          titlePadding: const .fromLTRB(20, 20, 20, 12),
+          title: Row(
+            children: [
+              const Expanded(child: Text('保存字幕')),
+              const Text('格式: ', style: TextStyle(fontSize: 14)),
+              Builder(
+                builder: (context) => PopupMenuButton<SubtitleFormat>(
+                  tooltip: '',
+                  initialValue: format,
+                  onSelected: (value) {
+                    format = value;
+                    (context as Element).markNeedsBuild();
+                  },
+                  itemBuilder: (_) => SubtitleFormat.values
+                      .map(
+                        (e) => PopupMenuItem(
+                          value: e,
+                          height: 35,
+                          child: Text(e.label),
                         ),
-                      );
-                      if (format == null) return;
-                      final url = item.subtitleUrl;
-                      if (url == null || url.isEmpty) return;
-                      try {
-                        final res = await Request.dio.get<Uint8List>(
-                          url.http2https,
-                          options: Options(
-                            responseType: ResponseType.bytes,
-                            headers: Constants.baseHeaders,
-                            extra: {'account': const NoAccount()},
-                          ),
-                        );
-                        if (res.statusCode == 200) {
-                          final rawBytes = Uint8List.fromList(
-                            Request.responseBytesDecoder(
-                              res.data!,
-                              res.headers.map,
+                      )
+                      .toList(),
+                  child: Padding(
+                    padding: const .symmetric(horizontal: 2, vertical: 5),
+                    child: Text.rich(
+                      style: .new(fontSize: 14, color: secondary),
+                      TextSpan(
+                        children: [
+                          TextSpan(text: format.label),
+                          WidgetSpan(
+                            alignment: .middle,
+                            child: Icon(
+                              size: 14,
+                              MdiIcons.unfoldMoreHorizontal,
+                              color: secondary,
                             ),
-                          );
-                          Uint8List bytes = rawBytes;
-                          String extension = 'json';
-                          if (format == 'srt') {
-                            final Map<String, dynamic> json =
-                                jsonDecode(utf8.decode(rawBytes))
-                                    as Map<String, dynamic>;
-                            final body = json['body'] as List<dynamic>;
-                            final srtText = SubtitleUtils.bccToSrt(body);
-                            bytes = Uint8List.fromList(utf8.encode(srtText));
-                            extension = 'srt';
-                          }
-                          String name =
-                              '${introController.videoDetail.value.title}-${videoDetailCtr.bvid}-${videoDetailCtr.cid.value}-${item.lanDoc}.$extension';
-                          name = name.replaceAll(
-                            RegExp(r'[<>:/\\|?*"]'),
-                            '',
-                          );
-                          StorageUtils.saveBytes2File(
-                            name: name,
-                            bytes: bytes,
-                            allowedExtensions: [extension],
-                          );
-                        }
-                      } catch (e, s) {
-                        Utils.reportError(e, s);
-                        SmartDialog.showToast(e.toString());
-                      }
-                    },
-                    title: Text(
-                      item.lanDoc!,
-                      style: const TextStyle(fontSize: 14),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                )
-                .toList(),
+                ),
+              ),
+            ],
           ),
-        ),
-      ),
+          children: List.generate(subtitles.length, (i) {
+            final item = subtitles[i];
+            return DialogOption(
+              onPressed: () async {
+                Get.back();
+                try {
+                  Uint8List? bytes;
+                  switch (format) {
+                    case .vtt:
+                      bytes = await _loadSubtitleVttBytes(i, item);
+                    case .srt:
+                      final url = item.subtitleUrl;
+                      if (url == null || url.isEmpty) return;
+                      final subtitle = await VideoHttp.vttSubtitles(
+                        url,
+                        format: .srt,
+                      );
+                      if (subtitle == null) return;
+                      bytes = Uint8List.fromList(utf8.encode(subtitle));
+                    case .json:
+                      bytes = await _loadSubtitleJsonBytes(item);
+                  }
+                  if (bytes == null) return;
+                  final videoDetail = introController.videoDetail.value;
+                  final name =
+                      '${videoDetail.title}-${videoDetail.owner?.name}(${videoDetail.owner?.mid})-${videoDetailCtr.bvid}-${videoDetailCtr.cid.value}-${item.lanDoc}.${format.name}'
+                          .replaceAll(
+                            Platform.isWindows ? RegExp(r'[<>:/\\|?*"]') : '/',
+                            '_',
+                          );
+                  // Reserved characters may not be used in file names. See: https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file#naming-conventions
+                  StorageUtils.saveBytes2File(
+                    name: name,
+                    bytes: bytes,
+                    allowedExtensions: [format.name],
+                  );
+                } catch (e, s) {
+                  Utils.reportError(e, s);
+                  SmartDialog.showToast(e.toString());
+                }
+              },
+              child: Text(item.lanDoc ?? item.lan),
+            );
+          }),
+        );
+      },
     );
   }
 
@@ -1240,13 +1364,18 @@ class HeaderControlState extends State<HeaderControl>
 
   /// 字幕设置
   void showSetSubtitle() {
+    // 0 = 主字幕, 1 = 副字幕。字号/字重/描边/背景独立,位置边距共用(仅主字幕页显示)
+    int segment = 0;
     showBottomSheet(
       padding: () => isFullScreen ? const .only(bottom: 70) : .zero,
       (context, setState) {
         final theme = Theme.of(context);
 
+        const EdgeInsets sliderPadding = .symmetric(vertical: 16);
+
         final sliderTheme = SliderThemeData(
           trackHeight: 10,
+          padding: const .symmetric(horizontal: 6),
           trackShape: const MSliderTrackShape(),
           thumbColor: theme.colorScheme.primary,
           activeTrackColor: theme.colorScheme.primary,
@@ -1254,54 +1383,116 @@ class HeaderControlState extends State<HeaderControl>
           thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.0),
         );
 
-        void updateStrokeWidth(double val) {
-          plPlayerController
-            ..subtitleStrokeWidth = val
-            ..updateSubtitleStyle();
+        final isPrimary = segment == 0;
+
+        void update(VoidCallback apply) {
+          apply();
+          plPlayerController.updateSubtitleStyle();
           setState(() {});
         }
 
-        void updateOpacity(double val) {
-          plPlayerController
-            ..subtitleBgOpacity = val.toPrecision(2)
-            ..updateSubtitleStyle();
-          setState(() {});
-        }
+        final fontScale = isPrimary
+            ? subtitleFontScale
+            : plPlayerController.subtitleSecondaryFontScale;
+        final fontScaleFS = isPrimary
+            ? subtitleFontScaleFS
+            : plPlayerController.subtitleSecondaryFontScaleFS;
+        final fontWeight = isPrimary
+            ? subtitleFontWeight
+            : plPlayerController.subtitleSecondaryFontWeight;
+        final strokeWidth = isPrimary
+            ? subtitleStrokeWidth
+            : plPlayerController.subtitleSecondaryStrokeWidth;
+        final bgOpacity = isPrimary
+            ? subtitleBgOpacity
+            : plPlayerController.subtitleSecondaryBgOpacity;
 
-        void updateBottomPadding(double val) {
-          plPlayerController
-            ..subtitlePaddingB = val.round()
-            ..updateSubtitleStyle();
-          setState(() {});
-        }
+        void updateFontScale(double val) => update(() {
+          val = val.toPrecision(2);
+          if (isPrimary) {
+            plPlayerController.subtitleFontScale = val;
+          } else {
+            plPlayerController.subtitleSecondaryFontScale = val;
+          }
+        });
 
-        void updateHorizontalPadding(double val) {
-          plPlayerController
-            ..subtitlePaddingH = val.round()
-            ..updateSubtitleStyle();
-          setState(() {});
-        }
+        void updateFontScaleFS(double val) => update(() {
+          val = val.toPrecision(2);
+          if (isPrimary) {
+            plPlayerController.subtitleFontScaleFS = val;
+          } else {
+            plPlayerController.subtitleSecondaryFontScaleFS = val;
+          }
+        });
 
-        void updateFontScaleFS(double val) {
-          plPlayerController
-            ..subtitleFontScaleFS = val
-            ..updateSubtitleStyle();
-          setState(() {});
-        }
+        void updateFontWeight(double val) => update(() {
+          if (isPrimary) {
+            plPlayerController.subtitleFontWeight = val.toInt();
+          } else {
+            plPlayerController.subtitleSecondaryFontWeight = val.toInt();
+          }
+        });
 
-        void updateFontScale(double val) {
-          plPlayerController
-            ..subtitleFontScale = val
-            ..updateSubtitleStyle();
-          setState(() {});
-        }
+        void updateStrokeWidth(double val) => update(() {
+          if (isPrimary) {
+            plPlayerController.subtitleStrokeWidth = val;
+          } else {
+            plPlayerController.subtitleSecondaryStrokeWidth = val;
+          }
+        });
 
-        void updateFontWeight(double val) {
-          plPlayerController
-            ..subtitleFontWeight = val.toInt()
-            ..updateSubtitleStyle();
-          setState(() {});
-        }
+        void updateOpacity(double val) => update(() {
+          if (isPrimary) {
+            plPlayerController.subtitleBgOpacity = val.toPrecision(2);
+          } else {
+            plPlayerController.subtitleSecondaryBgOpacity = val.toPrecision(2);
+          }
+        });
+
+        void updateBottomPadding(double val) => update(() {
+          plPlayerController.subtitlePaddingB = val.round();
+        });
+
+        void updateHorizontalPadding(double val) => update(() {
+          plPlayerController.subtitlePaddingH = val.round();
+        });
+
+        void updateSecondarySpacing(double val) => update(() {
+          plPlayerController.subtitleSecondarySpacing = val;
+        });
+
+        List<Widget> sliderRow({
+          required String title,
+          required Widget reset,
+          required double min,
+          required double max,
+          int? divisions,
+          required double value,
+          String? label,
+          required ValueChanged<double> onChanged,
+        }) => [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(title),
+              reset,
+            ],
+          ),
+          Padding(
+            padding: sliderPadding,
+            child: SliderTheme(
+              data: sliderTheme,
+              child: Slider(
+                min: min,
+                max: max,
+                value: value,
+                divisions: divisions,
+                label: label,
+                onChanged: onChanged,
+              ),
+            ),
+          ),
+        ];
 
         return Padding(
           padding: const EdgeInsets.all(12),
@@ -1318,192 +1509,126 @@ class HeaderControlState extends State<HeaderControl>
                     height: 45,
                     child: Center(child: Text('字幕设置', style: titleStyle)),
                   ),
+                  Center(
+                    child: SegmentedButton<int>(
+                      showSelectedIcon: false,
+                      style: const ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      segments: const [
+                        ButtonSegment(value: 0, label: Text('主字幕')),
+                        ButtonSegment(value: 1, label: Text('副字幕')),
+                      ],
+                      selected: {segment},
+                      onSelectionChanged: (val) =>
+                          setState(() => segment = val.first),
+                    ),
+                  ),
                   const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '字体大小 ${(subtitleFontScale * 100).toStringAsFixed(1)}%',
+                  ...sliderRow(
+                    title: '字体大小 ${(fontScale * 100).toStringAsFixed(1)}%',
+                    reset: isPrimary
+                        ? resetBtn(theme, '100.0%', () => updateFontScale(1.0))
+                        : resetBtn(theme, '80.0%', () => updateFontScale(0.8)),
+                    min: 0.5,
+                    max: 2.5,
+                    divisions: 200,
+                    value: fontScale,
+                    label: '${(fontScale * 100).toStringAsFixed(1)}%',
+                    onChanged: updateFontScale,
+                  ),
+                  ...sliderRow(
+                    title:
+                        '全屏字体大小 ${(fontScaleFS * 100).toStringAsFixed(1)}%',
+                    reset: isPrimary
+                        ? resetBtn(
+                            theme,
+                            '150.0%',
+                            () => updateFontScaleFS(1.5),
+                          )
+                        : resetBtn(
+                            theme,
+                            '120.0%',
+                            () => updateFontScaleFS(1.2),
+                          ),
+                    min: 0.5,
+                    max: 2.5,
+                    divisions: 200,
+                    value: fontScaleFS,
+                    label: '${(fontScaleFS * 100).toStringAsFixed(1)}%',
+                    onChanged: updateFontScaleFS,
+                  ),
+                  ...sliderRow(
+                    title: '字体粗细 ${fontWeight + 1}（可能无法精确调节）',
+                    reset: resetBtn(theme, 6, () => updateFontWeight(5)),
+                    min: 0,
+                    max: 8,
+                    divisions: 8,
+                    value: fontWeight.toDouble(),
+                    label: '${fontWeight + 1}',
+                    onChanged: updateFontWeight,
+                  ),
+                  ...sliderRow(
+                    title: '描边粗细 $strokeWidth',
+                    reset: resetBtn(theme, 2.0, () => updateStrokeWidth(2.0)),
+                    min: 0,
+                    max: 5,
+                    divisions: 10,
+                    value: strokeWidth,
+                    label: '$strokeWidth',
+                    onChanged: updateStrokeWidth,
+                  ),
+                  if (isPrimary) ...[
+                    ...sliderRow(
+                      title: '左右边距 $subtitlePaddingH',
+                      reset: resetBtn(
+                        theme,
+                        24,
+                        () => updateHorizontalPadding(24),
                       ),
-                      resetBtn(theme, '100.0%', () => updateFontScale(1.0)),
-                    ],
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      top: 0,
-                      bottom: 6,
-                      left: 10,
-                      right: 10,
+                      min: 0,
+                      max: 100,
+                      divisions: 100,
+                      value: subtitlePaddingH.toDouble(),
+                      label: '$subtitlePaddingH',
+                      onChanged: updateHorizontalPadding,
                     ),
-                    child: SliderTheme(
-                      data: sliderTheme,
-                      child: Slider(
-                        min: 0.5,
-                        max: 2.5,
-                        value: subtitleFontScale,
-                        divisions: 20,
-                        label:
-                            '${(subtitleFontScale * 100).toStringAsFixed(1)}%',
-                        onChanged: updateFontScale,
+                    ...sliderRow(
+                      title: '底部边距 $subtitlePaddingB',
+                      reset: resetBtn(theme, 24, () => updateBottomPadding(24)),
+                      min: 0,
+                      max: 200,
+                      divisions: 200,
+                      value: subtitlePaddingB.toDouble(),
+                      label: '$subtitlePaddingB',
+                      onChanged: updateBottomPadding,
+                    ),
+                  ] else
+                    ...sliderRow(
+                      title:
+                          '与主字幕间距 ${plPlayerController.subtitleSecondarySpacing.toStringAsFixed(1)}',
+                      reset: resetBtn(
+                        theme,
+                        4.0,
+                        () => updateSecondarySpacing(4.0),
                       ),
+                      min: 0,
+                      max: 40,
+                      divisions: 40,
+                      value: plPlayerController.subtitleSecondarySpacing,
+                      label: plPlayerController.subtitleSecondarySpacing
+                          .toStringAsFixed(1),
+                      onChanged: updateSecondarySpacing,
                     ),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '全屏字体大小 ${(subtitleFontScaleFS * 100).toStringAsFixed(1)}%',
-                      ),
-                      resetBtn(theme, '150.0%', () => updateFontScaleFS(1.5)),
-                    ],
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      top: 0,
-                      bottom: 6,
-                      left: 10,
-                      right: 10,
-                    ),
-                    child: SliderTheme(
-                      data: sliderTheme,
-                      child: Slider(
-                        min: 0.5,
-                        max: 2.5,
-                        value: subtitleFontScaleFS,
-                        divisions: 20,
-                        label:
-                            '${(subtitleFontScaleFS * 100).toStringAsFixed(1)}%',
-                        onChanged: updateFontScaleFS,
-                      ),
-                    ),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('字体粗细 ${subtitleFontWeight + 1}（可能无法精确调节）'),
-                      resetBtn(theme, 6, () => updateFontWeight(5)),
-                    ],
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      top: 0,
-                      bottom: 6,
-                      left: 10,
-                      right: 10,
-                    ),
-                    child: SliderTheme(
-                      data: sliderTheme,
-                      child: Slider(
-                        min: 0,
-                        max: 8,
-                        value: subtitleFontWeight.toDouble(),
-                        divisions: 8,
-                        label: '${subtitleFontWeight + 1}',
-                        onChanged: updateFontWeight,
-                      ),
-                    ),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('描边粗细 $subtitleStrokeWidth'),
-                      resetBtn(theme, 2.0, () => updateStrokeWidth(2.0)),
-                    ],
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      top: 0,
-                      bottom: 6,
-                      left: 10,
-                      right: 10,
-                    ),
-                    child: SliderTheme(
-                      data: sliderTheme,
-                      child: Slider(
-                        min: 0,
-                        max: 5,
-                        value: subtitleStrokeWidth,
-                        divisions: 10,
-                        label: '$subtitleStrokeWidth',
-                        onChanged: updateStrokeWidth,
-                      ),
-                    ),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('左右边距 $subtitlePaddingH'),
-                      resetBtn(theme, 24, () => updateHorizontalPadding(24)),
-                    ],
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      top: 0,
-                      bottom: 6,
-                      left: 10,
-                      right: 10,
-                    ),
-                    child: SliderTheme(
-                      data: sliderTheme,
-                      child: Slider(
-                        min: 0,
-                        max: 100,
-                        value: subtitlePaddingH.toDouble(),
-                        divisions: 100,
-                        label: '$subtitlePaddingH',
-                        onChanged: updateHorizontalPadding,
-                      ),
-                    ),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('底部边距 $subtitlePaddingB'),
-                      resetBtn(theme, 24, () => updateBottomPadding(24)),
-                    ],
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      top: 0,
-                      bottom: 6,
-                      left: 10,
-                      right: 10,
-                    ),
-                    child: SliderTheme(
-                      data: sliderTheme,
-                      child: Slider(
-                        min: 0,
-                        max: 200,
-                        value: subtitlePaddingB.toDouble(),
-                        divisions: 200,
-                        label: '$subtitlePaddingB',
-                        onChanged: updateBottomPadding,
-                      ),
-                    ),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('背景不透明度 ${(subtitleBgOpacity * 100).toInt()}%'),
-                      resetBtn(theme, '67%', () => updateOpacity(0.67)),
-                    ],
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(
-                      top: 0,
-                      bottom: 6,
-                      left: 10,
-                      right: 10,
-                    ),
-                    child: SliderTheme(
-                      data: sliderTheme,
-                      child: Slider(
-                        min: 0,
-                        max: 1,
-                        value: subtitleBgOpacity,
-                        onChanged: updateOpacity,
-                      ),
-                    ),
+                  ...sliderRow(
+                    title:
+                        '背景不透明度 ${(bgOpacity * 100).toStringAsFixed(1)}%',
+                    reset: resetBtn(theme, '67%', () => updateOpacity(0.67)),
+                    min: 0,
+                    max: 1,
+                    divisions: 100,
+                    value: bgOpacity,
+                    onChanged: updateOpacity,
                   ),
                 ],
               ),
@@ -1688,10 +1813,8 @@ class HeaderControlState extends State<HeaderControl>
               title,
               spacing: 30,
               velocity: 30,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-              ),
+              strutStyle: const StrutStyle(fontSize: 16, leading: 0),
+              style: const TextStyle(color: Colors.white, fontSize: 16),
               provider: effectiveProvider,
             );
           },
@@ -1720,363 +1843,350 @@ class HeaderControlState extends State<HeaderControl>
       title = const Spacer();
     }
 
-    const btnWidth = 40.0;
+    const btnWidth = 42.0;
     const btnHeight = 34.0;
     const btnStyle = ButtonStyle(padding: WidgetStatePropertyAll(.zero));
 
-    return AppBar(
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      backgroundColor: Colors.transparent,
-      foregroundColor: Colors.white,
-      primary: false,
-      automaticallyImplyLeading: false,
-      toolbarHeight: showFSActionItem ? 112 : null,
-      flexibleSpace: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 11),
-          Row(
-            children: [
+    return Column(
+      mainAxisSize: .min,
+      children: [
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            SizedBox(
+              width: btnWidth,
+              height: btnHeight,
+              child: IconButton(
+                tooltip: '返回',
+                style: btnStyle,
+                icon: const Icon(
+                  FontAwesomeIcons.arrowLeft,
+                  size: 15,
+                  color: Colors.white,
+                ),
+                onPressed: () =>
+                    plPlayerController.onPopInvokedWithResult(false, null),
+              ),
+            ),
+            if (!plPlayerController.isDesktopPip &&
+                (!isFullScreen || !isPortrait))
               SizedBox(
                 width: btnWidth,
                 height: btnHeight,
                 child: IconButton(
-                  tooltip: '返回',
+                  tooltip: '返回主页',
                   style: btnStyle,
                   icon: const Icon(
-                    FontAwesomeIcons.arrowLeft,
+                    FontAwesomeIcons.house,
                     size: 15,
                     color: Colors.white,
                   ),
-                  onPressed: () =>
-                      plPlayerController.onPopInvokedWithResult(false, null),
+                  onPressed: plPlayerController.onCloseAll,
                 ),
               ),
-              if (!plPlayerController.isDesktopPip &&
-                  (!isFullScreen || !isPortrait))
-                SizedBox(
+            title,
+            // show current datetime
+            ...?timeBatteryWidgets,
+            if (PlatformUtils.isDesktop && !plPlayerController.isDesktopPip)
+              Obx(() {
+                final isAlwaysOnTop = plPlayerController.isAlwaysOnTop.value;
+                return SizedBox(
                   width: btnWidth,
                   height: btnHeight,
                   child: IconButton(
-                    tooltip: '返回主页',
                     style: btnStyle,
-                    icon: const Icon(
-                      FontAwesomeIcons.house,
-                      size: 15,
-                      color: Colors.white,
-                    ),
-                    onPressed: plPlayerController.onCloseAll,
+                    tooltip: '${isAlwaysOnTop ? '取消' : ''}置顶',
+                    onPressed: () =>
+                        plPlayerController.setAlwaysOnTop(!isAlwaysOnTop),
+                    icon: isAlwaysOnTop
+                        ? const Icon(
+                            size: 19,
+                            Icons.push_pin,
+                            color: Colors.white,
+                          )
+                        : const Icon(
+                            size: 19,
+                            Icons.push_pin_outlined,
+                            color: Colors.white,
+                          ),
                   ),
-                ),
-              title,
-              // show current datetime
-              ...?timeBatteryWidgets,
-              if (PlatformUtils.isDesktop && !plPlayerController.isDesktopPip)
-                Obx(() {
-                  final isAlwaysOnTop = plPlayerController.isAlwaysOnTop.value;
-                  return SizedBox(
-                    width: btnWidth,
-                    height: btnHeight,
-                    child: IconButton(
-                      style: btnStyle,
-                      tooltip: '${isAlwaysOnTop ? '取消' : ''}置顶',
-                      onPressed: () =>
-                          plPlayerController.setAlwaysOnTop(!isAlwaysOnTop),
-                      icon: isAlwaysOnTop
-                          ? const Icon(
-                              size: 19,
-                              Icons.push_pin,
-                              color: Colors.white,
-                            )
-                          : const Icon(
-                              size: 19,
-                              Icons.push_pin_outlined,
-                              color: Colors.white,
-                            ),
-                    ),
-                  );
-                }),
-              if (!isFileSource) ...[
-                if (!isFSOrPip) ...[
-                  if (videoDetailCtr.isUgc)
-                    SizedBox(
-                      width: btnWidth,
-                      height: btnHeight,
-                      child: IconButton(
-                        tooltip: '听音频',
-                        style: btnStyle,
-                        onPressed: videoDetailCtr.toAudioPage,
-                        icon: const Icon(
-                          Icons.headphones_outlined,
-                          size: 19,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
+                );
+              }),
+            if (!isFileSource) ...[
+              if (!isFSOrPip) ...[
+                if (videoDetailCtr.isUgc)
                   SizedBox(
                     width: btnWidth,
                     height: btnHeight,
                     child: IconButton(
-                      tooltip: '投屏',
+                      tooltip: '听音频',
                       style: btnStyle,
-                      onPressed: videoDetailCtr.onCast,
+                      onPressed: videoDetailCtr.toAudioPage,
                       icon: const Icon(
-                        Icons.cast,
+                        Icons.headphones_outlined,
                         size: 19,
                         color: Colors.white,
                       ),
                     ),
                   ),
-                ],
-                if (plPlayerController.enableSponsorBlock)
-                  SizedBox(
-                    width: btnWidth,
-                    height: btnHeight,
-                    child: IconButton(
-                      tooltip: '提交片段',
-                      style: btnStyle,
-                      onPressed: () => videoDetailCtr.onBlock(context),
-                      icon: const Icon(
-                        CustomIcons.shield_play_arrow,
-                        size: 20,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-              ],
-              Obx(
-                () => videoDetailCtr.segmentProgressList.isNotEmpty
-                    ? SizedBox(
-                        width: btnWidth,
-                        height: btnHeight,
-                        child: IconButton(
-                          tooltip: '片段信息',
-                          style: btnStyle,
-                          onPressed: videoDetailCtr.showSBDetail,
-                          icon: const Icon(
-                            MdiIcons.advertisements,
-                            size: 19,
-                            color: Colors.white,
-                          ),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-              if (!isPortrait || isFullScreen || PlatformUtils.isDesktop) ...[
                 SizedBox(
                   width: btnWidth,
                   height: btnHeight,
                   child: IconButton(
-                    tooltip: '发弹幕',
+                    tooltip: '投屏',
                     style: btnStyle,
-                    onPressed: videoDetailCtr.showShootDanmakuSheet,
+                    onPressed: videoDetailCtr.onCast,
                     icon: const Icon(
-                      Icons.comment_outlined,
+                      Icons.cast,
                       size: 19,
                       color: Colors.white,
                     ),
                   ),
                 ),
+              ],
+              if (plPlayerController.enableSponsorBlock)
                 SizedBox(
                   width: btnWidth,
                   height: btnHeight,
-                  child: Obx(
-                    () {
-                      final enableShowDanmaku =
-                          plPlayerController.enableShowDanmaku.value;
-                      return IconButton(
-                        tooltip: "${enableShowDanmaku ? '关闭' : '开启'}弹幕",
+                  child: IconButton(
+                    tooltip: '提交片段',
+                    style: btnStyle,
+                    onPressed: () => videoDetailCtr.onBlock(context),
+                    icon: const Icon(
+                      CustomIcons.shield_play_arrow,
+                      size: 20,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
+            Obx(
+              () => videoDetailCtr.segmentProgressList.isNotEmpty
+                  ? SizedBox(
+                      width: btnWidth,
+                      height: btnHeight,
+                      child: IconButton(
+                        tooltip: '片段信息',
                         style: btnStyle,
-                        onPressed: () {
-                          final newVal = !enableShowDanmaku;
-                          plPlayerController.enableShowDanmaku.value = newVal;
-                          if (!plPlayerController.tempPlayerConf) {
-                            setting.put(
-                              SettingBoxKey.enableShowDanmaku,
-                              newVal,
-                            );
-                          }
-                        },
-                        icon: enableShowDanmaku
-                            ? const Icon(
-                                size: 20,
-                                CustomIcons.dm_on,
-                                color: Colors.white,
-                              )
-                            : const Icon(
-                                size: 20,
-                                CustomIcons.dm_off,
-                                color: Colors.white,
-                              ),
-                      );
-                    },
-                  ),
-                ),
-              ],
+                        onPressed: videoDetailCtr.showSBDetail,
+                        icon: const Icon(
+                          MdiIcons.advertisements,
+                          size: 19,
+                          color: Colors.white,
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+            if (!isPortrait || isFullScreen || PlatformUtils.isDesktop) ...[
               SizedBox(
                 width: btnWidth,
                 height: btnHeight,
                 child: IconButton(
-                  tooltip: '弹幕设置',
+                  tooltip: '发弹幕',
                   style: btnStyle,
-                  onPressed: showSetDanmaku,
+                  onPressed: videoDetailCtr.showShootDanmakuSheet,
                   icon: const Icon(
-                    size: 20,
-                    CustomIcons.dm_settings,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-              if (Platform.isAndroid ||
-                  (PlatformUtils.isDesktop && !isFullScreen))
-                SizedBox(
-                  width: btnWidth,
-                  height: btnHeight,
-                  child: IconButton(
-                    tooltip: '画中画',
-                    style: btnStyle,
-                    onPressed: () {
-                      if (PlatformUtils.isDesktop) {
-                        plPlayerController.toggleDesktopPip();
-                        return;
-                      }
-                      if (AndroidHelper.isPipAvailable) {
-                        plPlayerController.enterPip();
-                      }
-                    },
-                    icon: const Icon(
-                      Icons.picture_in_picture_outlined,
-                      size: 19,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              SizedBox(
-                width: btnWidth,
-                height: btnHeight,
-                child: IconButton(
-                  tooltip: "更多设置",
-                  style: btnStyle,
-                  onPressed: showSettingSheet,
-                  icon: const Icon(
-                    Icons.more_vert_outlined,
+                    Icons.comment_outlined,
                     size: 19,
                     color: Colors.white,
                   ),
                 ),
               ),
+              SizedBox(
+                width: btnWidth,
+                height: btnHeight,
+                child: Obx(
+                  () {
+                    final enableShowDanmaku = plPlayerController.enableShowDanmaku.value;
+                    return IconButton(
+                      tooltip: "${enableShowDanmaku ? '关闭' : '开启'}弹幕",
+                      style: btnStyle,
+                      onPressed: () {
+                        final newVal = !enableShowDanmaku;
+                        plPlayerController.enableShowDanmaku.value = newVal;
+                        if (!plPlayerController.tempPlayerConf) {
+                          setting.put(SettingBoxKey.enableShowDanmaku, newVal);
+                        }
+                      },
+                      icon: enableShowDanmaku
+                          ? const Icon(
+                              size: 20,
+                              CustomIcons.dm_on,
+                              color: Colors.white,
+                            )
+                          : const Icon(
+                              size: 20,
+                              CustomIcons.dm_off,
+                              color: Colors.white,
+                            ),
+                    );
+                  },
+                ),
+              ),
             ],
-          ),
-          if (showFSActionItem)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: btnWidth,
-                  height: btnHeight,
-                  child: Obx(
-                    () => ActionItem(
-                      expand: false,
-                      icon: const Icon(
-                        FontAwesomeIcons.thumbsUp,
-                        color: Colors.white,
-                      ),
-                      selectIcon: const Icon(FontAwesomeIcons.solidThumbsUp),
-                      selectStatus: introController.hasLike.value,
-                      semanticsLabel: '点赞',
-                      animation: introController.tripleAnimation,
-                      onStartTriple: () {
-                        plPlayerController.tripling = true;
-                        introController.onStartTriple();
-                      },
-                      onCancelTriple: ([bool isTapUp = false]) {
-                        plPlayerController
-                          ..tripling = false
-                          ..hideTaskControls();
-                        introController.onCancelTriple(isTapUp);
-                      },
-                    ),
+            SizedBox(
+              width: btnWidth,
+              height: btnHeight,
+              child: IconButton(
+                tooltip: '弹幕设置',
+                style: btnStyle,
+                onPressed: showSetDanmaku,
+                icon: const Icon(
+                  size: 20,
+                  CustomIcons.dm_settings,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            if (Platform.isAndroid ||
+                (PlatformUtils.isDesktop && !isFullScreen))
+              SizedBox(
+                width: btnWidth,
+                height: btnHeight,
+                child: IconButton(
+                  tooltip: '画中画',
+                  style: btnStyle,
+                  onPressed: () {
+                    if (PlatformUtils.isDesktop) {
+                      plPlayerController.toggleDesktopPip();
+                      return;
+                    }
+                    if (AndroidHelper.isPipAvailable) {
+                      plPlayerController.enterPip();
+                    }
+                  },
+                  icon: const Icon(
+                    Icons.picture_in_picture_outlined,
+                    size: 19,
+                    color: Colors.white,
                   ),
                 ),
-                if (introController case final UgcIntroController ugc)
-                  SizedBox(
-                    width: btnWidth,
-                    height: btnHeight,
-                    child: Obx(
-                      () => ActionItem(
-                        expand: false,
-                        icon: const Icon(
-                          FontAwesomeIcons.thumbsDown,
-                          color: Colors.white,
-                        ),
-                        selectIcon: const Icon(
-                          FontAwesomeIcons.solidThumbsDown,
-                        ),
-                        onTap: () => ugc.handleAction(ugc.actionDislikeVideo),
-                        selectStatus: ugc.hasDislike.value,
-                        semanticsLabel: '点踩',
-                      ),
-                    ),
-                  ),
-                SizedBox(
-                  width: btnWidth,
-                  height: btnHeight,
-                  child: Obx(
-                    () => ActionItem(
-                      expand: false,
-                      animation: introController.tripleAnimation,
-                      icon: const Icon(
-                        FontAwesomeIcons.b,
-                        color: Colors.white,
-                      ),
-                      selectIcon: const Icon(FontAwesomeIcons.b),
-                      onTap: introController.actionCoinVideo,
-                      selectStatus: introController.hasCoin,
-                      semanticsLabel: '投币',
-                    ),
-                  ),
+              ),
+            SizedBox(
+              width: btnWidth,
+              height: btnHeight,
+              child: IconButton(
+                tooltip: "更多设置",
+                style: btnStyle,
+                onPressed: showSettingSheet,
+                icon: const Icon(
+                  Icons.more_vert_outlined,
+                  size: 19,
+                  color: Colors.white,
                 ),
-                SizedBox(
-                  width: btnWidth,
-                  height: btnHeight,
-                  child: Obx(
-                    () => ActionItem(
-                      expand: false,
-                      animation: introController.tripleAnimation,
-                      icon: const Icon(
-                        FontAwesomeIcons.star,
-                        color: Colors.white,
-                      ),
-                      selectIcon: const Icon(FontAwesomeIcons.solidStar),
-                      onTap: () => introController.showFavBottomSheet(context),
-                      onLongPress: () => introController.showFavBottomSheet(
-                        context,
-                        isLongPress: true,
-                      ),
-                      selectStatus: introController.hasFav.value,
-                      semanticsLabel: '收藏',
-                    ),
-                  ),
-                ),
-                SizedBox(
-                  width: btnWidth,
-                  height: btnHeight,
-                  child: ActionItem(
+              ),
+            ),
+          ],
+        ),
+        if (showFSActionItem)
+          Row(
+            mainAxisAlignment: .end,
+            crossAxisAlignment: .start,
+            children: [
+              SizedBox(
+                width: btnWidth,
+                height: btnHeight,
+                child: Obx(
+                  () => ActionItem(
                     expand: false,
                     icon: const Icon(
-                      FontAwesomeIcons.shareFromSquare,
+                      FontAwesomeIcons.thumbsUp,
                       color: Colors.white,
                     ),
-                    onTap: () => introController.actionShareVideo(context),
-                    semanticsLabel: '分享',
+                    selectIcon: const Icon(FontAwesomeIcons.solidThumbsUp),
+                    selectStatus: introController.hasLike.value,
+                    semanticsLabel: '点赞',
+                    animation: introController.tripleAnimation,
+                    onStartTriple: () {
+                      plPlayerController.tripling = true;
+                      introController.onStartTriple();
+                    },
+                    onCancelTriple: ([bool isTapUp = false]) {
+                      plPlayerController
+                        ..tripling = false
+                        ..hideTaskControls();
+                      introController.onCancelTriple(isTapUp);
+                    },
                   ),
                 ),
-              ],
-            ),
-        ],
-      ),
+              ),
+              if (introController case final UgcIntroController ugc)
+                SizedBox(
+                  width: btnWidth,
+                  height: btnHeight,
+                  child: Obx(
+                    () => ActionItem(
+                      expand: false,
+                      icon: const Icon(
+                        FontAwesomeIcons.thumbsDown,
+                        color: Colors.white,
+                      ),
+                      selectIcon: const Icon(
+                        FontAwesomeIcons.solidThumbsDown,
+                      ),
+                      onTap: () => ugc.handleAction(ugc.actionDislikeVideo),
+                      selectStatus: ugc.hasDislike.value,
+                      semanticsLabel: '点踩',
+                    ),
+                  ),
+                ),
+              SizedBox(
+                width: btnWidth,
+                height: btnHeight,
+                child: Obx(
+                  () => ActionItem(
+                    expand: false,
+                    animation: introController.tripleAnimation,
+                    icon: const Icon(
+                      FontAwesomeIcons.b,
+                      color: Colors.white,
+                    ),
+                    selectIcon: const Icon(FontAwesomeIcons.b),
+                    onTap: introController.actionCoinVideo,
+                    selectStatus: introController.hasCoin,
+                    semanticsLabel: '投币',
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: btnWidth,
+                height: btnHeight,
+                child: Obx(
+                  () => ActionItem(
+                    expand: false,
+                    animation: introController.tripleAnimation,
+                    icon: const Icon(
+                      FontAwesomeIcons.star,
+                      color: Colors.white,
+                    ),
+                    selectIcon: const Icon(FontAwesomeIcons.solidStar),
+                    onTap: () => introController.showFavBottomSheet(context),
+                    onLongPress: () => introController.showFavBottomSheet(
+                      context,
+                      isLongPress: true,
+                    ),
+                    selectStatus: introController.hasFav.value,
+                    semanticsLabel: '收藏',
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: btnWidth,
+                height: btnHeight,
+                child: ActionItem(
+                  expand: false,
+                  icon: const Icon(
+                    FontAwesomeIcons.shareFromSquare,
+                    color: Colors.white,
+                  ),
+                  onTap: () => introController.actionShareVideo(context),
+                  semanticsLabel: '分享',
+                ),
+              ),
+            ],
+          ),
+      ],
     );
   }
 }

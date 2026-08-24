@@ -4,11 +4,13 @@ import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/button/toolbar_icon_button.dart';
 import 'package:PiliPlus/common/widgets/custom_icon.dart';
-import 'package:PiliPlus/common/widgets/flutter/draggable_scrollable_sheet.dart';
+import 'package:PiliPlus/common/widgets/draggable_sheet/dyn.dart';
 import 'package:PiliPlus/common/widgets/flutter/popup_menu.dart';
 import 'package:PiliPlus/common/widgets/flutter/text_field/controller.dart';
 import 'package:PiliPlus/common/widgets/flutter/text_field/text_field.dart';
 import 'package:PiliPlus/common/widgets/pair.dart';
+import 'package:PiliPlus/common/widgets/scroll_physics.dart'
+    show platformClampingPhysics;
 import 'package:PiliPlus/common/widgets/time_picker.dart';
 import 'package:PiliPlus/http/dynamics.dart';
 import 'package:PiliPlus/http/loading_state.dart';
@@ -139,7 +141,7 @@ class _CreateDynPanelState extends CommonRichTextPubPageState<CreateDynPanel> {
           child: ListView(
             padding: EdgeInsets.zero,
             controller: widget.scrollController,
-            physics: const ClampingScrollPhysics(),
+            physics: platformClampingPhysics,
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -299,6 +301,7 @@ class _CreateDynPanelState extends CommonRichTextPubPageState<CreateDynPanel> {
             SliverToBoxAdapter(
               child: Material(
                 borderRadius: Style.mdRadius,
+                color: theme.colorScheme.secondaryContainer,
                 child: InkWell(
                   borderRadius: Style.mdRadius,
                   onTap: () => onPickImage(() {
@@ -306,14 +309,9 @@ class _CreateDynPanelState extends CommonRichTextPubPageState<CreateDynPanel> {
                       enablePublish.value = true;
                     }
                   }),
-                  child: Ink(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      borderRadius: Style.mdRadius,
-                      color: theme.colorScheme.secondaryContainer,
-                    ),
-                    child: const Center(child: Icon(Icons.add, size: 35)),
+                  child: const SizedBox.square(
+                    dimension: 100,
+                    child: Icon(Icons.add, size: 35),
                   ),
                 ),
               ),
@@ -386,7 +384,7 @@ class _CreateDynPanelState extends CommonRichTextPubPageState<CreateDynPanel> {
     return StaticPopupMenuButton<bool>(
       requestFocus: false,
       initialValue: _isPrivate.value,
-      onSelected: (value) => _isPrivate.value = value,
+      onSelected: _isPrivate.call,
       itemBuilder: (context) => List.generate(
         2,
         (index) => PopupMenuItem<bool>(
@@ -631,7 +629,7 @@ class _CreateDynPanelState extends CommonRichTextPubPageState<CreateDynPanel> {
     return SizedBox(
       height: height,
       child: GridView(
-        physics: const ClampingScrollPhysics(),
+        physics: platformClampingPhysics,
         padding: const EdgeInsets.only(left: 12, bottom: 12, right: 12),
         gridDelegate: SliverGridDelegateWithExtentAndRatio(
           maxCrossAxisExtent: 65,

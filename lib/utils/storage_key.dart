@@ -9,8 +9,7 @@ abstract final class SettingBoxKey {
       defaultAudioQaCellular = 'defaultAudioQaCellular',
       autoPlayEnable = 'autoPlayEnable',
       fullScreenMode = 'fullScreenMode',
-      defaultDecode = 'defaultDecode',
-      secondDecode = 'secondDecode',
+      preferCodecs = 'preferCodecs',
       defaultToastOp = 'defaultToastOp',
       defaultPicQa = 'defaultPicQa',
       enableHA = 'enableHA',
@@ -38,8 +37,10 @@ abstract final class SettingBoxKey {
   static const String enableVerticalExpand = 'enableVerticalExpand',
       feedBackEnable = 'feedBackEnable',
       enableLongShowControl = 'enableLongShowControl',
+      showControlsOnManualEpisodeChange = 'showControlsOnManualEpisodeChange',
       horizontalScreen = 'horizontalScreen',
       CDNService = 'CDNService',
+      customCDNUrl = 'customCDNUrl',
       disableAudioCDN = 'disableAudioCDN',
       autoPiP = 'autoPiP',
       enableInAppPip = 'enableInAppPip',
@@ -67,7 +68,6 @@ abstract final class SettingBoxKey {
       autoUpdate = 'autoUpdate',
       preReleaseUpdate = 'preReleaseUpdate',
       skipVersion = 'skipVersion',
-      autoClearCache = 'autoClearCache',
       maxCacheSize = 'maxCacheSize',
       defaultShowComment = 'defaultShowComment',
       replySortType = 'replySortType',
@@ -106,7 +106,6 @@ abstract final class SettingBoxKey {
       banWordForZone = 'banWordForZone',
       savedRcmdTip = 'savedRcmdTip',
       openInBrowser = 'openInBrowser',
-      refreshDragPercentage = 'refreshDragPercentage',
       refreshDisplacement = 'refreshDisplacement',
       showHotRcmd = 'showHotRcmd',
       audioNormalization = 'audioNormalization',
@@ -132,6 +131,8 @@ abstract final class SettingBoxKey {
       removeOnlyFansVideoDyn = 'removeOnlyFansVideoDyn',
       antiGoodsReply = 'antiGoodsReply',
       replyMinLevel = 'replyMinLevel',
+      keepUpOwnerReply = 'keepUpOwnerReply',
+      keepUpTopReply = 'keepUpTopReply',
       keepUpLikeReply = 'keepUpLikeReply',
       keepUpReplyReply = 'keepUpReplyReply',
       expandDynLivePanel = 'expandDynLivePanel',
@@ -141,6 +142,7 @@ abstract final class SettingBoxKey {
       slideDismissReplyPage = 'slideDismissReplyPage',
       showFSActionItem = 'showFSActionItem',
       enableShrinkVideoSize = 'enableShrinkVideoSize',
+      enablePinchRotate = 'enablePinchRotate',
       showDynActionBar = 'showDynActionBar',
       darkVideoPage = 'darkVideoPage',
       enableSlideVolumeBrightness = 'enableSlideVolumeBrightness',
@@ -164,6 +166,7 @@ abstract final class SettingBoxKey {
       quickFavId = 'quickFavId',
       showFsScreenshotBtn = 'showFsScreenshotBtn',
       showFsLockBtn = 'showFsLockBtn',
+      showFsLockBtnRight = 'showFsLockBtnRight',
       silentDownImg = 'silentDownImg',
       showMemberShop = 'showMemberShop',
       enablePlayAll = 'enablePlayAll',
@@ -178,9 +181,11 @@ abstract final class SettingBoxKey {
       showDynDispute = 'showDynDispute',
       touchSlopH = 'touchSlopH',
       floatingNavBar = 'floatingNavBar',
+      enableCurrentPageRefresh = 'enableCurrentPageRefresh',
       mixWithOthers = 'mixWithOthers',
       removeSafeArea = 'removeSafeArea',
-      angleDegrees = 'angleDegrees';
+      angleDegrees = 'angleDegrees',
+      liveStream = 'liveStream';
 
   static const String enableAiChat = 'enableAiChat',
       aiApiUrl = 'aiApiUrl',
@@ -207,7 +212,13 @@ abstract final class SettingBoxKey {
       subtitleStrokeWidth = 'subtitleStrokeWidth',
       subtitleFontScale = 'subtitleFontScale',
       subtitleFontScaleFS = 'subtitleFontScaleFS',
-      subtitleFontWeight = 'subtitleFontWeight';
+      subtitleFontWeight = 'subtitleFontWeight',
+      subtitleSecondaryBgOpacity = 'subtitleSecondaryBgOpacity',
+      subtitleSecondaryStrokeWidth = 'subtitleSecondaryStrokeWidth',
+      subtitleSecondaryFontScale = 'subtitleSecondaryFontScale',
+      subtitleSecondaryFontScaleFS = 'subtitleSecondaryFontScaleFS',
+      subtitleSecondaryFontWeight = 'subtitleSecondaryFontWeight',
+      subtitleSecondarySpacing = 'subtitleSecondarySpacing';
 
   static const String webdavUri = 'webdavUri',
       webdavUsername = 'webdavUsername',
@@ -221,6 +232,7 @@ abstract final class SettingBoxKey {
       blockUserID = 'blockUserID',
       blockToast = 'blockToast',
       blockServer = 'blockServer',
+      blockSkipWhenSeekIntoSegment = 'blockSkipWhenSeekIntoSegment',
       blockTrack = 'blockTrack';
 
   static const String enableShowDanmaku = 'enableShowDanmaku',
@@ -239,6 +251,7 @@ abstract final class SettingBoxKey {
       mergeDanmakuSkipBottom = 'mergeDanmakuSkipBottom',
       mergeDanmakuMarkPosition = 'mergeDanmakuMarkPosition',
       mergeDanmakuMarkThreshold = 'mergeDanmakuMarkThreshold',
+      danmakuEnlarge = 'danmakuEnlarge',
       danmakuEnlargeThreshold = 'danmakuEnlargeThreshold',
       danmakuEnlargeLogBase = 'danmakuEnlargeLogBase',
       danmakuWeight = 'danmakuWeight',
@@ -306,10 +319,14 @@ abstract final class LocalCacheKey {
       replyBlockedMids = 'replyBlockedMids',
       danmakuFilterRules = 'danmakuFilterRules',
       downloadCollections = 'downloadCollections',
+      lastLocalPlayed = 'lastLocalPlayed',
       mixinKey = 'mixinKey',
       timeStamp = 'timeStamp',
       buvid = 'buvid',
-      remarkMids = 'remarkMids';
+      remarkMids = 'remarkMids',
+      cdnNodeList = 'cdnNodeList',
+      cdnNodeListTime = 'cdnNodeListTime',
+      cdnNodeRegion = 'cdnNodeRegion';
 }
 
 abstract final class VideoBoxKey {
