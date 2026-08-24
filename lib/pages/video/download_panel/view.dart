@@ -70,7 +70,7 @@ class _DownloadPanelState extends State<DownloadPanel> {
   final ListController _listController = ListController();
 
   late final cidSet = widget.cidSet;
-  VideoQuality _quality = VideoQuality.fromCode(Pref.defaultVideoQa);
+  VideoQuality _quality = VideoQuality.fromCode(Pref.defaultDownloadVideoQa);
 
   ({String title, String sourceKey})? get _autoFolderInfo {
     final ugcSeason = widget.videoDetail?.ugcSeason;
@@ -581,9 +581,11 @@ class _DownloadPanelState extends State<DownloadPanel> {
       child: Builder(
         builder: (context) => StaticPopupMenuButton<VideoQuality>(
           initialValue: _quality,
-          onSelected: (value) {
-            _quality = value;
-            (context as Element).markNeedsBuild();
+          onSelected: (value) async {
+            await Pref.setDefaultDownloadVideoQa(value.code);
+            if (mounted) {
+              setState(() => _quality = value);
+            }
           },
           itemBuilder: (context) => VideoQuality.values
               .map(

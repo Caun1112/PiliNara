@@ -11,11 +11,13 @@ class MainLayout
     required this.sideBar,
     required this.bottomNav,
     required this.body,
+    this.bottomNavAlignment = Alignment.bottomCenter,
   });
 
   final Widget? sideBar;
   final Widget? bottomNav;
   final Widget body;
+  final Alignment bottomNavAlignment;
 
   @override
   Iterable<MainType> get slots => MainType.values;
@@ -31,7 +33,15 @@ class MainLayout
   SlottedContainerRenderObjectMixin<MainType, RenderBox> createRenderObject(
     BuildContext context,
   ) {
-    return _RenderMainLayout();
+    return _RenderMainLayout(bottomNavAlignment);
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderMainLayout renderObject,
+  ) {
+    renderObject.bottomNavAlignment = bottomNavAlignment;
   }
 }
 
@@ -39,6 +49,18 @@ class _RenderMainLayout extends RenderBox
     with
         SlottedContainerRenderObjectMixin<MainType, RenderBox>,
         SlottedLayoutMixin {
+  _RenderMainLayout(this._bottomNavAlignment);
+
+  Alignment _bottomNavAlignment;
+  Alignment get bottomNavAlignment => _bottomNavAlignment;
+  set bottomNavAlignment(Alignment value) {
+    if (_bottomNavAlignment == value) {
+      return;
+    }
+    _bottomNavAlignment = value;
+    markNeedsLayout();
+  }
+
   RenderBox? get sideBar => childForSlot(.sideBar);
   RenderBox? get bottomNav => childForSlot(.bottomNav);
   RenderBox get body => childForSlot(.body)!;
@@ -76,9 +98,11 @@ class _RenderMainLayout extends RenderBox
         );
         setOffset(
           bottomNav,
-          Offset(
-            (constraints.maxWidth - bottomNavSize.width) / 2,
-            constraints.maxHeight - bottomNavSize.height,
+          bottomNavAlignment.alongOffset(
+            Offset(
+              constraints.maxWidth - bottomNavSize.width,
+              constraints.maxHeight - bottomNavSize.height,
+            ),
           ),
         );
       }

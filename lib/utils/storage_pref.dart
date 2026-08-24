@@ -438,6 +438,14 @@ abstract final class Pref {
     defaultValue: VideoQuality.super8k.code,
   );
 
+  static int get defaultDownloadVideoQa => _setting.get(
+    SettingBoxKey.defaultDownloadVideoQa,
+    defaultValue: VideoQuality.high720.code,
+  );
+
+  static Future<void> setDefaultDownloadVideoQa(int value) =>
+      _setting.put(SettingBoxKey.defaultDownloadVideoQa, value);
+
   static int get defaultVideoQaCellular => _setting.get(
     SettingBoxKey.defaultVideoQaCellular,
     defaultValue: VideoQuality.high1080.code,

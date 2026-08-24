@@ -496,6 +496,9 @@ class _MainAppState extends PopScopeState<MainApp>
       child: MainLayout(
         sideBar: sideBar,
         bottomNav: bottomNav,
+        bottomNavAlignment: _mainController.floatingNavBar
+            ? Alignment.bottomRight
+            : Alignment.bottomCenter,
         body: Padding(padding: padding, child: child),
       ),
     );
