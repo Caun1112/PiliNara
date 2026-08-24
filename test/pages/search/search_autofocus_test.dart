@@ -33,6 +33,7 @@ void main() {
         home: SearchPage(
           key: mainNavigationSearchPageKey,
           autofocus: false,
+          embedded: true,
         ),
       ),
     );
@@ -40,6 +41,7 @@ void main() {
 
     final appBar = tester.widget<AppBar>(find.byType(AppBar));
     expect(appBar.titleSpacing, 16);
+    expect(appBar.primary, isFalse);
 
     final textField = tester.widget<TextField>(find.byType(TextField));
     expect(textField.focusNode!.hasFocus, isFalse);

@@ -27,6 +27,7 @@ import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/utils.dart';
+import 'package:collection/collection.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, kReleaseMode;
 import 'package:flutter/material.dart';
@@ -64,6 +65,10 @@ class DownloadPanel extends StatefulWidget {
   @override
   State<DownloadPanel> createState() => _DownloadPanelState();
 }
+
+@visibleForTesting
+String formatDownloadSizeMb(int bytes) =>
+    '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
 
 class _DownloadPanelState extends State<DownloadPanel> {
   final DownloadService _downloadService = Get.find<DownloadService>();
@@ -491,6 +496,11 @@ class _DownloadPanelState extends State<DownloadPanel> {
                                         value: danmaku,
                                         type: StatType.danmaku,
                                       ),
+                                    if (cid != null &&
+                                        cidSet.contains(cid)) ...[
+                                      const Spacer(),
+                                      _buildDownloadSize(cid, theme),
+                                    ],
                                   ],
                                 ),
                               ],
@@ -519,6 +529,30 @@ class _DownloadPanelState extends State<DownloadPanel> {
         ),
       ),
     );
+  }
+
+  Widget _buildDownloadSize(int cid, ThemeData theme) {
+    return Obx(() {
+      final current = _downloadService.curDownload.value;
+      final entry = current?.cid == cid
+          ? current
+          : _downloadService.waitDownloadQueue.firstWhereOrNull(
+                  (entry) => entry.cid == cid,
+                ) ??
+                _downloadService.downloadList.firstWhereOrNull(
+                  (entry) => entry.cid == cid,
+                );
+      final totalBytes = entry?.totalBytes ?? 0;
+      return Text(
+        totalBytes > 0 ? formatDownloadSizeMb(totalBytes) : '大小计算中…',
+        maxLines: 1,
+        style: TextStyle(
+          fontSize: 12,
+          height: 1,
+          color: theme.colorScheme.outline,
+        ),
+      );
+    });
   }
 
   Widget _buildFooter(ThemeData theme, Color dividerColor) {

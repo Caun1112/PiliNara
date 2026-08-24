@@ -309,6 +309,11 @@ class MainController extends GetxController
         _toTopOrRefreshCurrentNav(currentNav);
       }
     }
+    if (currentNav == NavigationBarType.search) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        focusMainNavigationSearch();
+      });
+    }
   }
 
   void _toTopOrRefreshCurrentNav(NavigationBarType currentNav) {
@@ -364,11 +369,6 @@ class MainController extends GetxController
         break;
       case NavigationBarType.search:
         break;
-    }
-    if (currentNav == NavigationBarType.search) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        focusMainNavigationSearch();
-      });
     }
   }
 

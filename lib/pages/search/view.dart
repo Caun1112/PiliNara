@@ -28,9 +28,14 @@ void focusMainNavigationSearch() {
 }
 
 class SearchPage extends StatefulWidget {
-  const SearchPage({super.key, this.autofocus = true});
+  const SearchPage({
+    super.key,
+    this.autofocus = true,
+    this.embedded = false,
+  });
 
   final bool autofocus;
+  final bool embedded;
 
   @override
   State<SearchPage> createState() => SearchPageState();
@@ -104,6 +109,7 @@ class SearchPageState extends State<SearchPage> {
   }
 
   PreferredSizeWidget get _buildAppBar => AppBar(
+    primary: !widget.embedded,
     titleSpacing: 16,
     shape: Border(
       bottom: BorderSide(
