@@ -106,6 +106,7 @@ class _DownloadPanelState extends State<DownloadPanel> {
   VideoQuality _quality = VideoQuality.fromCode(Pref.defaultDownloadVideoQa);
   List<_DownloadQualityOption> _qualityOptions = const [];
   final Map<int, int> _resolvedSizes = {};
+  int? _selectingQualityCode;
 
   ({String title, String sourceKey})? get _autoFolderInfo {
     final ugcSeason = widget.videoDetail?.ugcSeason;
@@ -296,24 +297,28 @@ class _DownloadPanelState extends State<DownloadPanel> {
   }
 
   Widget _buildQualityPicker(ThemeData theme) {
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.68;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.62;
     return ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: 360, maxHeight: maxHeight),
+      constraints: BoxConstraints(maxWidth: 248, maxHeight: maxHeight),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 12, 8),
+            padding: const EdgeInsets.fromLTRB(14, 4, 4, 2),
             child: Row(
               children: [
                 Expanded(
-                  child: Text('下载画质', style: theme.textTheme.titleLarge),
+                  child: Text('下载画质', style: theme.textTheme.titleMedium),
                 ),
                 IconButton(
                   tooltip: '关闭',
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close),
+                  constraints: const BoxConstraints.tightFor(
+                    width: 44,
+                    height: 44,
+                  ),
+                  icon: const Icon(Icons.close, size: 20),
                 ),
               ],
             ),
@@ -327,34 +332,46 @@ class _DownloadPanelState extends State<DownloadPanel> {
             Flexible(
               child: ListView.builder(
                 shrinkWrap: true,
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: 4),
                 itemCount: _qualityOptions.length,
                 itemBuilder: (context, index) {
                   final option = _qualityOptions[index];
                   final bytes =
                       _resolvedSizes[option.quality.code] ??
                       option.estimatedBytes;
+                  final isSelecting =
+                      _selectingQualityCode == option.quality.code;
                   return InkWell(
-                    onTap: () => _onQualitySelected(option.quality),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 15,
-                      ),
-                      child: Row(
-                        children: [
-                          Text(
-                            option.quality.shortDesc,
-                            style: theme.textTheme.titleMedium,
-                          ),
-                          const Spacer(),
-                          Text(
-                            formatDownloadSize(bytes),
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                    onTap: _selectingQualityCode == null
+                        ? () => _onQualitySelected(option.quality)
+                        : null,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 44),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        child: Row(
+                          children: [
+                            Text(
+                              option.quality.shortDesc,
+                              style: theme.textTheme.labelLarge,
                             ),
-                          ),
-                        ],
+                            const Spacer(),
+                            if (isSelecting)
+                              const SizedBox.square(
+                                dimension: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            else
+                              Text(
+                                formatDownloadSize(bytes),
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   );
@@ -367,15 +384,32 @@ class _DownloadPanelState extends State<DownloadPanel> {
   }
 
   Future<void> _onQualitySelected(VideoQuality quality) async {
-    await Pref.setDefaultDownloadVideoQa(quality.code);
-    _quality = quality;
-    final currentCid =
-        widget.videoDetailController.seasonCid ??
-        widget.videoDetailController.cid.value;
-    final wasCached = cidSet.contains(currentCid);
-    final started = _downloadCurrent(currentCid);
-    if ((started || wasCached) && mounted) {
-      Navigator.pop(context);
+    if (_selectingQualityCode != null) {
+      return;
+    }
+    setState(() => _selectingQualityCode = quality.code);
+    try {
+      await Pref.setDefaultDownloadVideoQa(quality.code);
+      _quality = quality;
+      final currentCid =
+          widget.videoDetailController.seasonCid ??
+          widget.videoDetailController.cid.value;
+      final removed = await _downloadService.removeDownloadForQualityChange(
+        cid: currentCid,
+        quality: quality.code,
+      );
+      if (removed) {
+        cidSet.remove(currentCid);
+      }
+      final wasCached = cidSet.contains(currentCid);
+      final started = _downloadCurrent(currentCid);
+      if ((started || wasCached) && mounted) {
+        Navigator.pop(context);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _selectingQualityCode = null);
+      }
     }
   }
 

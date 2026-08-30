@@ -727,6 +727,45 @@ class DownloadService extends GetxService {
     }
   }
 
+  Future<bool> removeDownloadForQualityChange({
+    required int cid,
+    required int quality,
+  }) async {
+    BiliDownloadEntryInfo? entry;
+    final current = curDownload.value;
+    if (current?.cid == cid) {
+      entry = current;
+    } else {
+      for (final item in waitDownloadQueue) {
+        if (item.cid == cid) {
+          entry = item;
+          break;
+        }
+      }
+      if (entry == null) {
+        for (final item in downloadList) {
+          if (item.cid == cid) {
+            entry = item;
+            break;
+          }
+        }
+      }
+    }
+
+    if (entry == null ||
+        (entry.videoQuality ?? entry.preferedVideoQuality) == quality) {
+      return false;
+    }
+
+    await deleteDownload(
+      entry: entry,
+      removeList: true,
+      removeQueue: true,
+      downloadNext: false,
+    );
+    return true;
+  }
+
   Future<void> deleteDownload({
     required BiliDownloadEntryInfo entry,
     bool removeList = false,

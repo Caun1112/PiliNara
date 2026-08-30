@@ -2004,6 +2004,16 @@ class VideoDetailController extends GetxController
         await showDialog<void>(
           context: context,
           builder: (context) => Dialog(
+            alignment: Alignment.bottomRight,
+            insetPadding: EdgeInsets.fromLTRB(
+              12,
+              12,
+              12,
+              MediaQuery.viewPaddingOf(context).bottom + 12,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
             clipBehavior: Clip.antiAlias,
             child: DownloadPanel(
               index: index,
