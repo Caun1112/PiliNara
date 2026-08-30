@@ -2000,40 +2000,61 @@ class VideoDetailController extends GetxController
           ? 0
           : episodes.indexWhere((episode) => episode.cid == currentCid);
 
-      showModalBottomSheet(
-        context: context,
-        useSafeArea: true,
-        isScrollControlled: true,
-        constraints: BoxConstraints(
-          maxWidth: min(640, context.mediaQueryShortestSide),
-        ),
-        builder: (context) {
-          final maxChildSize =
-              PlatformUtils.isMobile && !context.mediaQuerySize.isPortrait
-              ? 1.0
-              : 0.7;
-          return DraggableScrollableSheet(
-            snap: true,
-            expand: false,
-            minChildSize: 0,
-            snapSizes: [maxChildSize],
-            maxChildSize: maxChildSize,
-            initialChildSize: maxChildSize,
-            builder: (context, scrollController) => DownloadPanel(
+      if (currentOnly) {
+        await showDialog<void>(
+          context: context,
+          builder: (context) => Dialog(
+            clipBehavior: Clip.antiAlias,
+            child: DownloadPanel(
               index: index,
               videoDetail: videoDetail,
               pgcItem: pgcItem,
               episodes: episodes!,
-              scrollController: scrollController,
+              scrollController: ScrollController(),
               videoDetailController: this,
               heroTag: heroTag,
               ugcIntroController: ugcIntroController,
               cidSet: cidSet,
               shareAfterDownload: shareAfterDownload,
             ),
-          );
-        },
-      );
+          ),
+        );
+      } else {
+        showModalBottomSheet(
+          context: context,
+          useSafeArea: true,
+          isScrollControlled: true,
+          constraints: BoxConstraints(
+            maxWidth: min(640, context.mediaQueryShortestSide),
+          ),
+          builder: (context) {
+            final maxChildSize =
+                PlatformUtils.isMobile && !context.mediaQuerySize.isPortrait
+                ? 1.0
+                : 0.7;
+            return DraggableScrollableSheet(
+              snap: true,
+              expand: false,
+              minChildSize: 0,
+              snapSizes: [maxChildSize],
+              maxChildSize: maxChildSize,
+              initialChildSize: maxChildSize,
+              builder: (context, scrollController) => DownloadPanel(
+                index: index,
+                videoDetail: videoDetail,
+                pgcItem: pgcItem,
+                episodes: episodes!,
+                scrollController: scrollController,
+                videoDetailController: this,
+                heroTag: heroTag,
+                ugcIntroController: ugcIntroController,
+                cidSet: cidSet,
+                shareAfterDownload: shareAfterDownload,
+              ),
+            );
+          },
+        );
+      }
     }
   }
 

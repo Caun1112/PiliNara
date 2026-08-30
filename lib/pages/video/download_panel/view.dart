@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/badge.dart';
@@ -5,9 +7,12 @@ import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
 import 'package:PiliPlus/common/widgets/flutter/popup_menu.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/stat/stat.dart';
+import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/models/common/badge_type.dart';
 import 'package:PiliPlus/models/common/stat_type.dart';
+import 'package:PiliPlus/models/common/video/audio_quality.dart';
 import 'package:PiliPlus/models/common/video/video_quality.dart';
+import 'package:PiliPlus/models/video/play/url.dart';
 import 'package:PiliPlus/models_new/pgc/pgc_info_model/episode.dart' as pgc;
 import 'package:PiliPlus/models_new/pgc/pgc_info_model/result.dart';
 import 'package:PiliPlus/models_new/video/video_detail/data.dart';
@@ -22,13 +27,16 @@ import 'package:PiliPlus/services/download/download_service.dart';
 import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/date_utils.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
+import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/utils.dart';
+import 'package:PiliPlus/utils/video_utils.dart';
 import 'package:collection/collection.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
@@ -67,8 +75,28 @@ class DownloadPanel extends StatefulWidget {
 }
 
 @visibleForTesting
-String formatDownloadSizeMb(int bytes) =>
-    '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+String formatDownloadSize(int bytes) {
+  const megabyte = 1024 * 1024;
+  const gigabyte = 1024 * megabyte;
+  if (bytes >= gigabyte) {
+    return '${(bytes / gigabyte).toStringAsFixed(2)} GB';
+  }
+  return '${(bytes / megabyte).toStringAsFixed(1)} MB';
+}
+
+@visibleForTesting
+int estimateDownloadSizeBytes({
+  required int durationSeconds,
+  required int videoBandwidth,
+  required int audioBandwidth,
+}) => ((videoBandwidth + audioBandwidth) * durationSeconds / 8).round();
+
+typedef _DownloadQualityOption = ({
+  VideoQuality quality,
+  VideoItem? video,
+  AudioItem? audio,
+  int estimatedBytes,
+});
 
 class _DownloadPanelState extends State<DownloadPanel> {
   final DownloadService _downloadService = Get.find<DownloadService>();
@@ -76,6 +104,8 @@ class _DownloadPanelState extends State<DownloadPanel> {
 
   late final cidSet = widget.cidSet;
   VideoQuality _quality = VideoQuality.fromCode(Pref.defaultDownloadVideoQa);
+  List<_DownloadQualityOption> _qualityOptions = const [];
+  final Map<int, int> _resolvedSizes = {};
 
   ({String title, String sourceKey})? get _autoFolderInfo {
     final ugcSeason = widget.videoDetail?.ugcSeason;
@@ -93,6 +123,10 @@ class _DownloadPanelState extends State<DownloadPanel> {
   @override
   void initState() {
     super.initState();
+    if (widget.shareAfterDownload) {
+      _qualityOptions = _buildQualityOptions();
+      unawaited(_resolveQualitySizes());
+    }
     if (widget.index != -1) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _listController.jumpToItem(
@@ -113,6 +147,9 @@ class _DownloadPanelState extends State<DownloadPanel> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    if (widget.shareAfterDownload) {
+      return _buildQualityPicker(theme);
+    }
     final dividerColor = theme.colorScheme.outline.withValues(alpha: 0.2);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -123,6 +160,238 @@ class _DownloadPanelState extends State<DownloadPanel> {
         _buildFooter(theme, dividerColor),
       ],
     );
+  }
+
+  List<_DownloadQualityOption> _buildQualityOptions() {
+    final data = widget.videoDetailController.data;
+    if (data.dash case final dash?) {
+      final duration = dash.duration ?? (data.timeLength ?? 0) ~/ 1000;
+      final audio = _selectAudio(dash.audio);
+      final audioBandwidth = audio?.bandWidth ?? 0;
+      return VideoQuality.values
+          .map((quality) {
+            final videos = dash.video
+                ?.where((video) => video.quality == quality)
+                .toList();
+            if (videos == null || videos.isEmpty) {
+              return null;
+            }
+            final codecs = data.supportFormats
+                ?.firstWhereOrNull((format) => format.quality == quality.code)
+                ?.codecs;
+            final preferredCodecs = codecs?.isNotEmpty == true
+                ? VideoUtils.selectCodec(codecs!, Pref.preferCodecs).codes
+                : const <String>[];
+            final video = videos.firstWhere(
+              (video) => preferredCodecs.any(video.codecs!.startsWith),
+              orElse: () => videos.first,
+            );
+            return (
+              quality: quality,
+              video: video,
+              audio: audio,
+              estimatedBytes: estimateDownloadSizeBytes(
+                durationSeconds: duration,
+                videoBandwidth: video.bandWidth ?? 0,
+                audioBandwidth: audioBandwidth,
+              ),
+            );
+          })
+          .nonNulls
+          .toList();
+    }
+
+    final durl = data.durl;
+    final qualityCode = data.quality;
+    if (durl?.isNotEmpty == true && qualityCode != null) {
+      return [
+        (
+          quality: VideoQuality.fromCode(qualityCode),
+          video: null,
+          audio: null,
+          estimatedBytes: durl!.fold(0, (sum, item) => sum + (item.size ?? 0)),
+        ),
+      ];
+    }
+    return const [];
+  }
+
+  AudioItem? _selectAudio(List<AudioItem>? audioList) {
+    if (audioList == null || audioList.isEmpty) {
+      return null;
+    }
+    final preferAudioQa = Pref.defaultAudioQa;
+    final audioIds = audioList.map((audio) => audio.id!).toList();
+    int closestNumber = audioIds.findClosestTarget(
+      (id) => id <= preferAudioQa,
+      (a, b) => a > b ? a : b,
+    );
+    if (!audioIds.contains(preferAudioQa) &&
+        audioIds.any((id) => id > preferAudioQa)) {
+      closestNumber = AudioQuality.k192.code;
+    }
+    return audioList.firstWhere(
+      (audio) => audio.id == closestNumber,
+      orElse: () => audioList.first,
+    );
+  }
+
+  Future<void> _resolveQualitySizes() async {
+    final audioSizes = <AudioItem, Future<int?>>{};
+    final futures = _qualityOptions.map((option) async {
+      final video = option.video;
+      if (video == null) {
+        return;
+      }
+      final audioSize = option.audio == null
+          ? 0
+          : await audioSizes.putIfAbsent(
+              option.audio!,
+              () => _resolveMediaSize(option.audio!, isAudio: true),
+            );
+      final videoSize = await _resolveMediaSize(video);
+      if (videoSize != null && audioSize != null && mounted) {
+        setState(() {
+          _resolvedSizes[option.quality.code] = videoSize + audioSize;
+        });
+      }
+    });
+    await Future.wait(futures);
+  }
+
+  Future<int?> _resolveMediaSize(
+    BaseItem item, {
+    bool isAudio = false,
+  }) async {
+    final cancelToken = CancelToken();
+    try {
+      final response = await Request.http11Dio.get<ResponseBody>(
+        VideoUtils.getCdnUrl(item.playUrls, isAudio: isAudio),
+        options: Options(
+          headers: const {'range': 'bytes=0-0'},
+          responseType: ResponseType.stream,
+          validateStatus: (status) =>
+              status != null && status >= 200 && status < 300,
+        ),
+        cancelToken: cancelToken,
+      );
+      final contentRange = response.headers.value('content-range');
+      final total = contentRange == null
+          ? null
+          : int.tryParse(contentRange.split('/').last);
+      if (total != null) {
+        return total;
+      }
+      if (response.statusCode == 200) {
+        return response.data?.contentLength;
+      }
+    } catch (_) {
+      return null;
+    } finally {
+      if (!cancelToken.isCancelled) {
+        cancelToken.cancel();
+      }
+    }
+    return null;
+  }
+
+  Widget _buildQualityPicker(ThemeData theme) {
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.68;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: 360, maxHeight: maxHeight),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 12, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text('下载画质', style: theme.textTheme.titleLarge),
+                ),
+                IconButton(
+                  tooltip: '关闭',
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+          if (_qualityOptions.isEmpty)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: Text('暂无可下载的画质'),
+            )
+          else
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                padding: const EdgeInsets.only(bottom: 8),
+                itemCount: _qualityOptions.length,
+                itemBuilder: (context, index) {
+                  final option = _qualityOptions[index];
+                  final bytes =
+                      _resolvedSizes[option.quality.code] ??
+                      option.estimatedBytes;
+                  return InkWell(
+                    onTap: () => _onQualitySelected(option.quality),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 15,
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            option.quality.shortDesc,
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          const Spacer(),
+                          Text(
+                            formatDownloadSize(bytes),
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _onQualitySelected(VideoQuality quality) async {
+    await Pref.setDefaultDownloadVideoQa(quality.code);
+    _quality = quality;
+    final currentCid =
+        widget.videoDetailController.seasonCid ??
+        widget.videoDetailController.cid.value;
+    final wasCached = cidSet.contains(currentCid);
+    final started = _downloadCurrent(currentCid);
+    if ((started || wasCached) && mounted) {
+      Navigator.pop(context);
+    }
+  }
+
+  bool _downloadCurrent(int currentCid) {
+    final episode = widget.episodes.first;
+    if (episode case ugc.EpisodeItem(:final pages?)) {
+      final part = pages.firstWhereOrNull((part) => part.cid == currentCid);
+      if (part != null) {
+        return _onDownload(
+          index: part.page ?? widget.index,
+          episode: part,
+          parent: episode,
+        );
+      }
+    }
+    return _onDownload(index: widget.index, episode: episode);
   }
 
   Widget _buildHeader(ThemeData theme) {
@@ -544,7 +813,7 @@ class _DownloadPanelState extends State<DownloadPanel> {
                 );
       final totalBytes = entry?.totalBytes ?? 0;
       return Text(
-        totalBytes > 0 ? formatDownloadSizeMb(totalBytes) : '大小计算中…',
+        totalBytes > 0 ? formatDownloadSize(totalBytes) : '大小计算中…',
         maxLines: 1,
         style: TextStyle(
           fontSize: 12,
