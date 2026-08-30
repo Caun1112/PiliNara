@@ -4,9 +4,9 @@ import 'package:PiliPlus/pages/search/view.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   setUpAll(() async {

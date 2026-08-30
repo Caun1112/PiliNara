@@ -30,11 +30,11 @@ import 'package:PiliPlus/utils/utils.dart';
 import 'package:clipboard/clipboard.dart';
 import 'package:fixnum/fixnum.dart' show Int64;
 import 'package:flutter/foundation.dart' show kDebugMode, visibleForTesting;
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart' show DateFormat;
+import 'package:material_ui/material_ui.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 import 'package:protobuf/protobuf.dart';
 
@@ -270,8 +270,7 @@ class _SavePanelState extends State<SavePanel> {
           final ctr = Get.find<MusicDetailController>(
             tag: Get.parameters['musicId'],
           );
-          enterUri =
-              'enterUri=${Uri.encodeComponent(ctr.shareUrl)}'; // official client cannot parse it
+          enterUri = 'enterUri=${Uri.encodeComponent(ctr.shareUrl)}'; // official client cannot parse it
           final data = ctr.infoState.value.dataOrNull;
           if (data != null) {
             coverType = _CoverType.square;
@@ -995,8 +994,9 @@ class _SavePanelState extends State<SavePanel> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = ColorScheme.of(context);
     final padding = MediaQuery.viewPaddingOf(context);
-    final maxWidth = context.mediaQueryShortestSide;
+    final maxWidth = MediaQuery.sizeOf(context).shortestSide;
     final hasSmartReplyControls = !_isLoadingReplies && _item is ReplyInfo;
     final previewBottomPadding = hasSmartReplyControls ? 256.0 : 80.0;
     late final coverSize = MediaQuery.textScalerOf(context).scale(65);
@@ -1022,204 +1022,212 @@ class _SavePanelState extends State<SavePanel> {
                 child: Container(
                   clipBehavior: .hardEdge,
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
+                    color: colorScheme.surface,
                     borderRadius: const .all(.circular(12)),
                   ),
-                  child: AnimatedSize(
-                    curve: Curves.easeInOut,
-                    alignment: .topCenter,
-                    duration: _isCapturing
-                        ? Duration.zero
-                        : const Duration(milliseconds: 255),
-                    child: Column(
-                      mainAxisSize: .min,
-                      crossAxisAlignment: .start,
-                      children: [
-                        _buildStoryCardHeader(theme),
-                        _isLoadingReplies
-                            ? const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 48),
-                                child: Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    spacing: 12,
-                                    children: [
-                                      CircularProgressIndicator(),
-                                      Text('正在加载完整回复'),
-                                    ],
+                  // PublishRoute 是 PopupRoute，链上没有 Material，裸 Text 拿不到
+                  // 主题的 DefaultTextStyle，自定义字体会回退到系统字体。此处显式
+                  // 补上，使其与 Material 内的文本表现一致（截图同样受益）。
+                  child: DefaultTextStyle(
+                    style: TextTheme.of(context).bodyMedium!,
+                    child: AnimatedSize(
+                      curve: Curves.easeInOut,
+                      alignment: .topCenter,
+                      duration: _isCapturing
+                          ? Duration.zero
+                          : const Duration(milliseconds: 255),
+                      child: Column(
+                        mainAxisSize: .min,
+                        crossAxisAlignment: .start,
+                        children: [
+                          _buildStoryCardHeader(theme),
+                          _isLoadingReplies
+                              ? const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 48),
+                                  child: Center(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      spacing: 12,
+                                      children: [
+                                        CircularProgressIndicator(),
+                                        Text('正在加载完整回复'),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              )
-                            : switch (_item) {
-                                ReplyInfo reply => IgnorePointer(
-                                  ignoring: _isCapturing || _isActionInProgress,
-                                  child: ReplyItemGrpc(
-                                    replyItem: reply,
-                                    replyLevel: 0,
-                                    needDivider: false,
-                                    upMid: widget.upMid,
-                                    showFullImages: showFullImages,
-                                    showReplies: true,
-                                    selectionMode: !_isCapturing,
-                                    isReplySelected: _isReplySelected,
-                                    onToggleReply: _toggleReply,
-                                    selectionReason: _selectionReason,
-                                    fullWidthReplies: true,
+                                )
+                              : switch (_item) {
+                                  ReplyInfo reply => IgnorePointer(
+                                    ignoring:
+                                        _isCapturing || _isActionInProgress,
+                                    child: ReplyItemGrpc(
+                                      replyItem: reply,
+                                      replyLevel: 0,
+                                      needDivider: false,
+                                      upMid: widget.upMid,
+                                      showFullImages: showFullImages,
+                                      showReplies: true,
+                                      selectionMode: !_isCapturing,
+                                      isReplySelected: _isReplySelected,
+                                      onToggleReply: _toggleReply,
+                                      selectionReason: _selectionReason,
+                                      fullWidthReplies: true,
+                                    ),
                                   ),
-                                ),
-                                DynamicItemModel dyn => IgnorePointer(
-                                  child: DynamicPanel(
-                                    item: dyn,
-                                    isDetail: true,
-                                    isSave: true,
+                                  DynamicItemModel dyn => IgnorePointer(
+                                    child: DynamicPanel(
+                                      item: dyn,
+                                      isDetail: true,
+                                      isSave: true,
+                                    ),
                                   ),
+                                  _ => throw UnsupportedError(_item.toString()),
+                                },
+                          if (_replyLoadIncomplete)
+                            Padding(
+                              padding: const .fromLTRB(12, 0, 12, 12),
+                              child: Text(
+                                '完整回复加载不完整，已保留当前可用内容',
+                                style: TextStyle(
+                                  color: theme.colorScheme.error,
                                 ),
-                                _ => throw UnsupportedError(_item.toString()),
-                              },
-                        if (_replyLoadIncomplete)
-                          Padding(
-                            padding: const .fromLTRB(12, 0, 12, 12),
-                            child: Text(
-                              '完整回复加载不完整，已保留当前可用内容',
-                              style: TextStyle(
-                                color: theme.colorScheme.error,
                               ),
                             ),
-                          ),
-                        if (cover?.isNotEmpty == true &&
-                            title?.isNotEmpty == true)
-                          Container(
-                            height: 81,
-                            margin: const .symmetric(horizontal: 12),
-                            padding: const .all(8),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.onInverseSurface,
-                              borderRadius: const .all(.circular(8)),
-                            ),
-                            child: Row(
-                              spacing: 10,
-                              children: [
-                                NetworkImgLayer(
-                                  src: cover!,
-                                  height: coverSize,
-                                  width: coverType == .def16_9
-                                      ? coverSize * Style.aspectRatio16x9
-                                      : coverSize,
-                                  quality: 100,
-                                  borderRadius: const .all(.circular(6)),
-                                ),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: .start,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          '$title\n',
-                                          maxLines: 2,
-                                          overflow: .ellipsis,
-                                        ),
-                                      ),
-                                      if (pubdate != null)
-                                        Text(
-                                          DateFormatUtils.format(
-                                            pubdate,
-                                            format: dateFormat,
-                                          ),
-                                          style: TextStyle(
-                                            color: theme.colorScheme.outline,
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        showBottom
-                            ? Stack(
-                                clipBehavior: .none,
+                          if (cover?.isNotEmpty == true &&
+                              title?.isNotEmpty == true)
+                            Container(
+                              height: 81,
+                              margin: const .symmetric(horizontal: 12),
+                              padding: const .all(8),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.onInverseSurface,
+                                borderRadius: const .all(.circular(8)),
+                              ),
+                              child: Row(
+                                spacing: 10,
                                 children: [
-                                  if (uri.isNotEmpty)
-                                    Align(
-                                      alignment: .centerRight,
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Column(
-                                              mainAxisSize: .min,
-                                              crossAxisAlignment: .end,
-                                              spacing: 4,
-                                              children: [
-                                                if (uname?.isNotEmpty == true)
-                                                  Text(
-                                                    '@$uname',
-                                                    maxLines: 1,
-                                                    overflow: .ellipsis,
-                                                    style: TextStyle(
-                                                      color: theme
-                                                          .colorScheme
-                                                          .primary,
-                                                    ),
-                                                  ),
-                                                Text(
-                                                  '识别二维码，$viewType$itemType',
-                                                  textAlign: .end,
-                                                  style: TextStyle(
-                                                    color: theme
-                                                        .colorScheme
-                                                        .onSurfaceVariant,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  DateFormatUtils.longFormatDs
-                                                      .format(.now()),
-                                                  textAlign: .end,
-                                                  style: TextStyle(
-                                                    fontSize: 13,
-                                                    color: theme
-                                                        .colorScheme
-                                                        .outline,
-                                                  ),
-                                                ),
-                                              ],
+                                  NetworkImgLayer(
+                                    src: cover!,
+                                    height: coverSize,
+                                    width: coverType == .def16_9
+                                        ? coverSize * Style.aspectRatio16x9
+                                        : coverSize,
+                                    quality: 100,
+                                    borderRadius: const .all(.circular(6)),
+                                  ),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: .start,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            '$title\n',
+                                            maxLines: 2,
+                                            overflow: .ellipsis,
+                                          ),
+                                        ),
+                                        if (pubdate != null)
+                                          Text(
+                                            DateFormatUtils.format(
+                                              pubdate,
+                                              format: dateFormat,
+                                            ),
+                                            style: TextStyle(
+                                              color: theme.colorScheme.outline,
                                             ),
                                           ),
-                                          GestureDetector(
-                                            onTap: () => Utils.copyText(uri),
-                                            child: Container(
-                                              width: 88,
-                                              height: 88,
-                                              margin: const .all(12),
-                                              padding: const .all(3),
-                                              color: theme.isDark
-                                                  ? Colors.white
-                                                  : theme.colorScheme.surface,
-                                              child: PrettyQrView.data(
-                                                data: uri,
-                                                decoration:
-                                                    const PrettyQrDecoration(
-                                                      shape:
-                                                          PrettyQrSquaresSymbol(),
-                                                    ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  Align(
-                                    alignment: .centerLeft,
-                                    child: Image.asset(
-                                      Assets.logo2,
-                                      width: 100,
-                                      cacheWidth: 100.cacheSize(context),
-                                      color: theme.colorScheme.onSurfaceVariant,
+                                      ],
                                     ),
                                   ),
                                 ],
-                              )
-                            : const SizedBox(height: 12),
-                      ],
+                              ),
+                            ),
+                          showBottom
+                              ? Stack(
+                                  clipBehavior: .none,
+                                  children: [
+                                    if (uri.isNotEmpty)
+                                      Align(
+                                        alignment: .centerRight,
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                mainAxisSize: .min,
+                                                crossAxisAlignment: .end,
+                                                spacing: 4,
+                                                children: [
+                                                  if (uname?.isNotEmpty == true)
+                                                    Text(
+                                                      '@$uname',
+                                                      maxLines: 1,
+                                                      overflow: .ellipsis,
+                                                      style: TextStyle(
+                                                        color: theme
+                                                            .colorScheme
+                                                            .primary,
+                                                      ),
+                                                    ),
+                                                  Text(
+                                                    '识别二维码，$viewType$itemType',
+                                                    textAlign: .end,
+                                                    style: TextStyle(
+                                                      color: theme
+                                                          .colorScheme
+                                                          .onSurfaceVariant,
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    DateFormatUtils.longFormatDs
+                                                        .format(.now()),
+                                                    textAlign: .end,
+                                                    style: TextStyle(
+                                                      fontSize: 13,
+                                                      color: theme
+                                                          .colorScheme
+                                                          .outline,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            GestureDetector(
+                                              onTap: () => Utils.copyText(uri),
+                                              child: Container(
+                                                width: 88,
+                                                height: 88,
+                                                margin: const .all(12),
+                                                padding: const .all(3),
+                                                color: theme.isDark
+                                                    ? Colors.white
+                                                    : theme.colorScheme.surface,
+                                                child: PrettyQrView.data(
+                                                  data: uri,
+                                                  decoration:
+                                                      const PrettyQrDecoration(
+                                                        shape:
+                                                            PrettyQrSquaresSymbol(),
+                                                      ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    Align(
+                                      alignment: .centerLeft,
+                                      child: Image.asset(
+                                        Assets.logo2,
+                                        width: 100,
+                                        cacheWidth: 100.cacheSize(context),
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : const SizedBox(height: 12),
+                        ],
+                      ),
                     ),
                   ),
                 ),

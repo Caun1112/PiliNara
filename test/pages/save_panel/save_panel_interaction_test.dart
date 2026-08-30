@@ -7,9 +7,9 @@ import 'package:PiliPlus/pages/video/reply/widgets/reply_item_grpc.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:fixnum/fixnum.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   setUpAll(() async {
@@ -162,7 +162,10 @@ void main() {
     expect(find.text('主评论保留 · 已选0/120条跟评'), findsOneWidget);
     final clearButton = find.byKey(const Key('save-panel-smart-clear'));
     final reorderButton = find.byKey(const Key('save-panel-smart-reorder'));
-    expect(tester.widget<TextButton>(_textButtonIn(clearButton)).onPressed, isNull);
+    expect(
+      tester.widget<TextButton>(_textButtonIn(clearButton)).onPressed,
+      isNull,
+    );
     expect(
       tester.widget<TextButton>(_textButtonIn(reorderButton)).onPressed,
       isNull,
@@ -203,7 +206,10 @@ void main() {
     await tester.pump();
 
     expect(find.text('主评论保留 · 已选0/120条跟评'), findsOneWidget);
-    expect(tester.widget<TextButton>(_textButtonIn(clearButton)).onPressed, isNull);
+    expect(
+      tester.widget<TextButton>(_textButtonIn(clearButton)).onPressed,
+      isNull,
+    );
     expect(
       tester.widget<TextButton>(_textButtonIn(reorderButton)).onPressed,
       isNull,
@@ -249,7 +255,10 @@ void main() {
     expect(find.text('清空'), findsOneWidget);
     expect(find.text('调整'), findsOneWidget);
     expect(find.byTooltip('选评操作'), findsNothing);
-    expect(tester.widget<TextButton>(_textButtonIn(clearButton)).onPressed, isNull);
+    expect(
+      tester.widget<TextButton>(_textButtonIn(clearButton)).onPressed,
+      isNull,
+    );
     expect(
       tester.widget<TextButton>(_textButtonIn(reorderButton)).onPressed,
       isNull,
@@ -295,7 +304,10 @@ void main() {
     expect(find.textContaining('互动较高'), findsNothing);
     expect(find.text('主评论保留 · 已选0/5条跟评'), findsOneWidget);
     expect(tester.widget<ChoiceChip>(highlightChip).selected, isFalse);
-    expect(tester.widget<TextButton>(_textButtonIn(clearButton)).onPressed, isNull);
+    expect(
+      tester.widget<TextButton>(_textButtonIn(clearButton)).onPressed,
+      isNull,
+    );
     expect(
       tester.widget<TextButton>(_textButtonIn(reorderButton)).onPressed,
       isNull,
@@ -405,17 +417,21 @@ void main() {
     expect(overlayRect.bottom, lessThanOrEqualTo(bottomActionsRect.top));
     final bottomActions = find.byKey(const Key('save-panel-bottom-actions'));
     expect(
-      find.descendant(
-        of: bottomActions,
-        matching: find.byTooltip('保存'),
-      ).hitTestable(),
+      find
+          .descendant(
+            of: bottomActions,
+            matching: find.byTooltip('保存'),
+          )
+          .hitTestable(),
       findsOneWidget,
     );
     expect(
-      find.descendant(
-        of: bottomActions,
-        matching: find.byTooltip('复制图片'),
-      ).hitTestable(),
+      find
+          .descendant(
+            of: bottomActions,
+            matching: find.byTooltip('复制图片'),
+          )
+          .hitTestable(),
       findsOneWidget,
     );
     final smartControls = [
@@ -431,15 +447,11 @@ void main() {
       expect(overlayRect.contains(rect.center), isTrue);
     }
     expect(
-      tester
-          .widget<TextButton>(_textButtonIn(smartControls[1]))
-          .onPressed,
+      tester.widget<TextButton>(_textButtonIn(smartControls[1])).onPressed,
       isNotNull,
     );
     expect(
-      tester
-          .widget<TextButton>(_textButtonIn(smartControls[2]))
-          .onPressed,
+      tester.widget<TextButton>(_textButtonIn(smartControls[2])).onPressed,
       isNotNull,
     );
     for (final label in ['精彩观点', '正反讨论', '科普补充', '搞笑瞬间']) {

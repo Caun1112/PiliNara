@@ -16,8 +16,8 @@ import 'package:PiliPlus/utils/extension/size_ext.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/utils.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:material_ui/material_ui.dart';
 
 const mainNavigationSearchPageKey = GlobalObjectKey<SearchPageState>(
   'main-navigation-search-page',
@@ -51,10 +51,7 @@ class SearchPageState extends State<SearchPage> {
   @override
   void initState() {
     super.initState();
-    _searchController = Get.put(
-      SSearchController(_tag),
-      tag: _tag,
-    );
+    _searchController = Get.put(SSearchController(_tag), tag: _tag);
   }
 
   @override
@@ -90,8 +87,7 @@ class SearchPageState extends State<SearchPage> {
                 ?trending,
                 _buildHistory,
                 ?rcmd,
-              ] else if (_searchController.enableTrending ||
-                  _searchController.enableSearchRcmd)
+              ] else if (trending != null || rcmd != null)
                 SliverCrossAxisGroup(
                   slivers: [
                     SliverMainAxisGroup(slivers: [?trending, ?rcmd]),
@@ -179,9 +175,7 @@ class SearchPageState extends State<SearchPage> {
                                     style: e.isEm
                                         ? TextStyle(
                                             fontWeight: .bold,
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.primary,
+                                            color: theme.colorScheme.primary,
                                           )
                                         : null,
                                   ),

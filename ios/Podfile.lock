@@ -1,9 +1,4 @@
 PODS:
-  - ffmpeg_kit_flutter_new (1.0.0):
-    - ffmpeg_kit_flutter_new/full-gpl (= 1.0.0)
-    - Flutter
-  - ffmpeg_kit_flutter_new/full-gpl (1.0.0):
-    - Flutter
   - Flutter (1.0.0)
   - flutter_inappwebview_ios (0.0.1):
     - Flutter
@@ -23,7 +18,6 @@ PODS:
   - OrderedSet (6.0.3)
 
 DEPENDENCIES:
-  - ffmpeg_kit_flutter_new (from `.symlinks/plugins/ffmpeg_kit_flutter_new/ios`)
   - Flutter (from `Flutter`)
   - flutter_inappwebview_ios (from `.symlinks/plugins/flutter_inappwebview_ios/ios`)
   - live_photo_maker (from `.symlinks/plugins/live_photo_maker/ios`)
@@ -36,8 +30,6 @@ SPEC REPOS:
     - OrderedSet
 
 EXTERNAL SOURCES:
-  ffmpeg_kit_flutter_new:
-    :path: ".symlinks/plugins/ffmpeg_kit_flutter_new/ios"
   Flutter:
     :path: Flutter
   flutter_inappwebview_ios:
@@ -52,8 +44,7 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/media_kit_video/ios"
 
 SPEC CHECKSUMS:
-  ffmpeg_kit_flutter_new: d6c4cd5009f6eb818e5899261dbae06f6e9c6c1b
-  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
   flutter_inappwebview_ios: b89ba3482b96fb25e00c967aae065701b66e9b99
   live_photo_maker: 29280ca88323bd5a33aafd00d98624d5cf522176
   media_kit_libs_ios_video: 5a18affdb97d1f5d466dc79988b13eff6c5e2854

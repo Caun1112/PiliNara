@@ -38,10 +38,10 @@ import 'package:collection/collection.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, kReleaseMode;
-import 'package:flutter/material.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 class DownloadPanel extends StatefulWidget {
