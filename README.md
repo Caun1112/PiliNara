@@ -318,6 +318,7 @@ yay -S pilinara-bin
 
 ## 致谢
 
+- [dart_simple_live](https://github.com/Caun1112/dart_simple_live)：虎牙直播数据、播放地址与弹幕协议
 - [bilibili-API-collect](https://github.com/SocialSisterYi/bilibili-API-collect)
 - [flutter_meedu_videoplayer](https://github.com/zezo357/flutter_meedu_videoplayer)
 - [media-kit](https://github.com/media-kit/media-kit)

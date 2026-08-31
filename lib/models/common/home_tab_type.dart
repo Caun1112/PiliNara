@@ -3,7 +3,7 @@ import 'package:PiliPlus/pages/common/common_controller.dart';
 import 'package:PiliPlus/pages/hot/controller.dart';
 import 'package:PiliPlus/pages/hot/view.dart';
 import 'package:PiliPlus/pages/live/controller.dart';
-import 'package:PiliPlus/pages/live/view.dart';
+import 'package:PiliPlus/pages/live/platform_view.dart';
 import 'package:PiliPlus/pages/pgc/controller.dart';
 import 'package:PiliPlus/pages/pgc/view.dart';
 import 'package:PiliPlus/pages/rank/controller.dart';
@@ -36,7 +36,7 @@ enum HomeTabType implements EnumWithLabel {
   };
 
   Widget get page => switch (this) {
-    HomeTabType.live => const LivePage(),
+    HomeTabType.live => const LivePlatformPage(),
     HomeTabType.rcmd => const RcmdPage(),
     HomeTabType.hot => const HotPage(),
     HomeTabType.rank => const RankPage(),

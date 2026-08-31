@@ -14,7 +14,7 @@ import 'package:PiliPlus/pages/dynamics/widgets/vote.dart';
 import 'package:PiliPlus/pages/fan/view.dart';
 import 'package:PiliPlus/pages/follow/view.dart';
 import 'package:PiliPlus/pages/follow_type/followed/view.dart';
-import 'package:PiliPlus/pages/live/view.dart';
+import 'package:PiliPlus/pages/live/platform_view.dart';
 import 'package:PiliPlus/pages/rank/view.dart';
 import 'package:PiliPlus/pages/subscription_detail/view.dart';
 import 'package:PiliPlus/pages/video/reply_reply/view.dart';
@@ -370,7 +370,7 @@ abstract final class PiliScheme {
             Get.to(
               SimpleScaffold(
                 appBar: AppBar(title: const Text('直播')),
-                body: const ViewSafeArea(child: LivePage()),
+                body: const ViewSafeArea(child: LivePlatformPage()),
               ),
             );
             return true;

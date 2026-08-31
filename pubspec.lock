@@ -1767,6 +1767,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.1.2"
+  simple_live_core:
+    dependency: "direct main"
+    description:
+      path: "packages/simple_live_core"
+      relative: true
+    source: path
+    version: "1.0.3-pilinara.1"
   sky_engine:
     dependency: transitive
     description: flutter
@@ -1829,6 +1836,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.4.1+1"
+  tars_dart:
+    dependency: transitive
+    description:
+      path: "packages/simple_live_core/packages/tars_dart"
+      relative: true
+    source: path
+    version: "0.1.0"
   term_glyph:
     dependency: transitive
     description:

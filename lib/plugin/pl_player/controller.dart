@@ -1042,6 +1042,22 @@ class PlPlayerController with BlockConfigMixin {
       }
     }
 
+    if (dataSource case NetworkSource(:final httpHeaders?)) {
+      String? userAgent;
+      final headers = <String, String>{};
+      for (final entry in httpHeaders.entries) {
+        if (entry.key.toLowerCase() == 'user-agent') {
+          userAgent = entry.value;
+        } else {
+          headers[entry.key] = entry.value;
+        }
+      }
+      player.setMediaHeader(
+        userAgent: userAgent,
+        headers: headers.isEmpty ? null : headers,
+      );
+    }
+
     await player.open(
       Media(
         video,

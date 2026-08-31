@@ -1,0 +1,15 @@
+name: simple_live_core
+version: 1.0.3-pilinara.1
+description: PiliNara 内置的 Simple Live 虎牙直播核心子集
+publish_to: none
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+
+dependencies:
+  crypto: ^3.0.6
+  dio: ^5.9.1
+  logger: ^2.5.0
+  tars_dart:
+    path: packages/tars_dart
+  web_socket_channel: ^3.0.3
