@@ -14,8 +14,14 @@ import 'package:simple_live_core/simple_live_core.dart';
 
 bool shouldRecoverHuyaPlaybackError(String reason) {
   final normalizedReason = reason.toLowerCase();
-  return !normalizedReason.contains('audio device') &&
-      !normalizedReason.startsWith('could not open codec');
+  return normalizedReason.contains('failed to open') ||
+      normalizedReason.contains('can not open') ||
+      normalizedReason.contains('cannot open') ||
+      normalizedReason.contains('http error') ||
+      normalizedReason.contains('ffurl_read returned') ||
+      normalizedReason.contains('connection reset') ||
+      normalizedReason.contains('connection timed out') ||
+      normalizedReason.contains('end of file');
 }
 
 class HuyaLiveRoomController extends GetxController {
@@ -26,7 +32,7 @@ class HuyaLiveRoomController extends GetxController {
     plPlayerController
       ..ignoreAppLifecyclePause = true
       ..livePlaybackErrorHandler = _recoverPlayback
-      ..livePlaybackEndedHandler = () => _recoverPlayback('直播流已结束');
+      ..livePlaybackEndedHandler = () => _recoverPlayback('end of file');
   }
 
   static const int _maxChatMessages = 500;
@@ -57,11 +63,7 @@ class HuyaLiveRoomController extends GetxController {
   bool _recovering = false;
   String? _pendingRecoveryReason;
   int _recoveryCycles = 0;
-  StreamSubscription<Duration>? _positionSubscription;
-  Timer? _stallTimer;
   Timer? _stablePlaybackTimer;
-  Duration _lastPosition = Duration.zero;
-  DateTime _lastProgressAt = DateTime.now();
 
   @override
   void onInit() {
@@ -185,38 +187,15 @@ class HuyaLiveRoomController extends GetxController {
         roomId: int.tryParse(roomId),
       );
       PlPlayerController.setPlayCallBack(plPlayerController.play);
-      _watchPlaybackProgress();
+      _markPlaybackOpened();
     } finally {
       switchingSource.value = false;
     }
   }
 
-  void _watchPlaybackProgress() {
-    final player = plPlayerController.videoPlayerController;
-    if (player == null) return;
-    _lastPosition = player.state.position;
-    _lastProgressAt = DateTime.now();
-    _positionSubscription ??= player.stream.position.listen((position) {
-      if (position != _lastPosition) {
-        _lastPosition = position;
-        _lastProgressAt = DateTime.now();
-      }
-    });
-    _stallTimer ??= Timer.periodic(const Duration(seconds: 3), (_) {
-      final currentPlayer = plPlayerController.videoPlayerController;
-      if (currentPlayer == null ||
-          !currentPlayer.state.playing ||
-          switchingSource.value ||
-          _recovering) {
-        return;
-      }
-      if (DateTime.now().difference(_lastProgressAt) >=
-          const Duration(seconds: 8)) {
-        unawaited(_recoverPlayback('播放进度长时间没有变化'));
-      }
-    });
+  void _markPlaybackOpened() {
     _stablePlaybackTimer?.cancel();
-    _stablePlaybackTimer = Timer(const Duration(seconds: 12), () {
+    _stablePlaybackTimer = Timer(const Duration(seconds: 20), () {
       if (plPlayerController.videoPlayerController?.state.playing == true) {
         _recoveryCycles = 0;
       }
@@ -331,8 +310,6 @@ class HuyaLiveRoomController extends GetxController {
   @override
   void onClose() {
     _loadGeneration++;
-    _positionSubscription?.cancel();
-    _stallTimer?.cancel();
     _stablePlaybackTimer?.cancel();
     _liveDanmaku?.stop();
     _liveDanmaku = null;

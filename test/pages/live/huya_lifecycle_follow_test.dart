@@ -58,6 +58,10 @@ void main() {
       ),
       isFalse,
     );
+    expect(
+      shouldRecoverHuyaPlaybackError('h264: Invalid NAL unit size'),
+      isFalse,
+    );
   });
 
   test('虎牙关注用户会保存到本地并支持取消', () async {
