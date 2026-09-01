@@ -30,6 +30,7 @@ abstract final class GStorage {
     'recommendBlockedMids',
     'replyBlockedMids',
     'remarkMids',
+    'huyaFollowUsers',
   ];
   static late final Box<Uint8List>? reply;
 

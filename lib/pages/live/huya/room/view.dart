@@ -67,6 +67,20 @@ class _HuyaLiveRoomPageState extends State<HuyaLiveRoomPage> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  actions: [
+                    Obx(
+                      () => IconButton(
+                        tooltip: _controller.followed.value ? '取消关注' : '关注主播',
+                        onPressed: _controller.toggleFollow,
+                        icon: Icon(
+                          _controller.followed.value
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
                 ),
           body: _buildBody(isFullScreen),
         ),

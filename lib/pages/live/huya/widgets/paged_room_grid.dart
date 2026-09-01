@@ -15,10 +15,12 @@ class HuyaPagedRoomGrid extends StatefulWidget {
     super.key,
     required this.loadPage,
     this.emptyMessage = '暂时没有正在直播的房间',
+    this.bottomPadding = 100,
   });
 
   final HuyaRoomPageLoader loadPage;
   final String emptyMessage;
+  final double bottomPadding;
 
   @override
   State<HuyaPagedRoomGrid> createState() => _HuyaPagedRoomGridState();
@@ -120,7 +122,10 @@ class _HuyaPagedRoomGridState extends State<HuyaPagedRoomGrid>
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.only(top: Style.cardSpace, bottom: 100),
+            padding: EdgeInsets.only(
+              top: Style.cardSpace,
+              bottom: widget.bottomPadding,
+            ),
             sliver: _buildContent(),
           ),
         ],

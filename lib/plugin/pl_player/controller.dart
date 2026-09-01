@@ -409,6 +409,17 @@ class PlPlayerController with BlockConfigMixin {
   late final bool autoEnterFullScreen = Pref.autoEnterFullScreen;
   late final bool autoExitFullscreen = Pref.autoExitFullscreen;
   late final bool autoPlayEnable = Pref.autoPlayEnable;
+  bool ignoreAppLifecyclePause = false;
+  Future<void> Function(String error)? livePlaybackErrorHandler;
+  Future<void> Function()? livePlaybackEndedHandler;
+
+  bool shouldAutoPauseForLifecycle(AppLifecycleState state) {
+    return !continuePlayInBackground.value &&
+        !ignoreAppLifecyclePause &&
+        (state == AppLifecycleState.paused ||
+            state == AppLifecycleState.detached);
+  }
+
   late final bool enableVerticalExpand = Pref.enableVerticalExpand;
   late final bool pipNoDanmaku = Pref.pipNoDanmaku;
 
@@ -1156,6 +1167,10 @@ class PlPlayerController with BlockConfigMixin {
         if (completed) {
           playerStatus.value = .completed;
 
+          if (isLive && livePlaybackEndedHandler != null) {
+            unawaited(livePlaybackEndedHandler!());
+          }
+
           for (final element in _statusListeners) {
             element(.completed);
           }
@@ -1211,6 +1226,10 @@ class PlPlayerController with BlockConfigMixin {
           return;
         }
         if (isLive) {
+          if (livePlaybackErrorHandler case final handler?) {
+            unawaited(handler(event));
+            return;
+          }
           if (event.startsWith('tcp: ffurl_read returned ') ||
               event.startsWith("Failed to open https://") ||
               event.startsWith("Can not open external file https://")) {
