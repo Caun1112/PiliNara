@@ -13,11 +13,13 @@ sealed class DataSource {
 
 class NetworkSource extends DataSource {
   final Map<String, String>? httpHeaders;
+  final String? streamLavfOptions;
 
   NetworkSource({
     required super.videoSource,
     required super.audioSource,
     this.httpHeaders,
+    this.streamLavfOptions,
   });
 }
 

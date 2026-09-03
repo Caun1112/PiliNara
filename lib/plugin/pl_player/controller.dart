@@ -1067,6 +1067,10 @@ class PlPlayerController with BlockConfigMixin {
       );
     }
 
+    if (dataSource case NetworkSource(:final streamLavfOptions?)) {
+      player.setProperty('stream-lavf-o', streamLavfOptions);
+    }
+
     await player.open(
       Media(
         video,

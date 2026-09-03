@@ -45,6 +45,16 @@ void main() {
     );
   });
 
+  test('虎牙直播启用 FFmpeg 流式连接自动恢复', () {
+    expect(huyaLiveStreamLavfOptions, contains('reconnect=1'));
+    expect(huyaLiveStreamLavfOptions, contains('reconnect_at_eof=1'));
+    expect(huyaLiveStreamLavfOptions, contains('reconnect_streamed=1'));
+    expect(
+      huyaLiveStreamLavfOptions,
+      contains('reconnect_on_network_error=1'),
+    );
+  });
+
   test('虎牙异常信号只在播放确实停止后触发恢复', () {
     expect(
       shouldRecoverHuyaPlayback(

@@ -13,6 +13,10 @@ import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:simple_live_core/simple_live_core.dart';
 
+const huyaLiveStreamLavfOptions =
+    'reconnect=1,reconnect_at_eof=1,reconnect_streamed=1,'
+    'reconnect_on_network_error=1,reconnect_delay_max=2';
+
 String buildHuyaPlaybackSignalLog({
   required String roomId,
   required int lineIndex,
@@ -195,6 +199,7 @@ class HuyaLiveRoomController extends GetxController {
           videoSource: playUrls[lineIndex.value],
           audioSource: null,
           httpHeaders: _playHeaders,
+          streamLavfOptions: huyaLiveStreamLavfOptions,
         ),
         isLive: true,
         autoplay: true,
@@ -235,26 +240,34 @@ class HuyaLiveRoomController extends GetxController {
     if (_recoveryCheckTimer != null || _recoveringPlayback) return;
     final player = plPlayerController.videoPlayerController;
     if (player == null) return;
-    final positionBefore = player.state.position;
-    _recoveryCheckTimer = Timer(const Duration(seconds: 3), () {
-      _recoveryCheckTimer = null;
-      final currentPlayer = plPlayerController.videoPlayerController;
-      if (isClosed ||
-          switchingSource.value ||
-          !identical(player, currentPlayer)) {
-        return;
-      }
-      final state = player.state;
-      if (!shouldRecoverHuyaPlayback(
-        completed: state.completed,
-        playing: state.playing,
-        positionBefore: positionBefore,
-        positionAfter: state.position,
-      )) {
-        return;
-      }
-      unawaited(_recoverStalledPlayback(reason));
-    });
+    final deadline = DateTime.now().add(const Duration(seconds: 30));
+
+    void scheduleNext(Duration positionBefore) {
+      _recoveryCheckTimer = Timer(const Duration(seconds: 3), () {
+        _recoveryCheckTimer = null;
+        final currentPlayer = plPlayerController.videoPlayerController;
+        if (isClosed ||
+            switchingSource.value ||
+            !identical(player, currentPlayer)) {
+          return;
+        }
+        final state = player.state;
+        if (shouldRecoverHuyaPlayback(
+          completed: state.completed,
+          playing: state.playing,
+          positionBefore: positionBefore,
+          positionAfter: state.position,
+        )) {
+          unawaited(_recoverStalledPlayback(reason));
+          return;
+        }
+        if (DateTime.now().isBefore(deadline)) {
+          scheduleNext(state.position);
+        }
+      });
+    }
+
+    scheduleNext(player.state.position);
   }
 
   Future<void> _recoverStalledPlayback(String reason) async {
