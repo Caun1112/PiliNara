@@ -37,24 +37,50 @@ void main() {
     expect(log, isNot(contains('secret')));
   });
 
-  test('虎牙播放地址使用 HTTPS 且不改写鉴权参数', () {
-    const source =
-        'http://al.flv.huya.com/live.flv?wsSecret=abc%2B123&ratio=2000';
+  test('虎牙默认画质取中间档，与上游一致', () {
+    expect(resolveHuyaDefaultQualityIndex(0), 0);
+    expect(resolveHuyaDefaultQualityIndex(1), 0);
+    expect(resolveHuyaDefaultQualityIndex(2), 1);
+    expect(resolveHuyaDefaultQualityIndex(4), 2);
+    expect(resolveHuyaDefaultQualityIndex(5), 2);
+  });
 
+  test('虎牙播放信号按上游规则分层处理', () {
     expect(
-      normalizeHuyaPlaybackUrl(source),
-      'https://al.flv.huya.com/live.flv?wsSecret=abc%2B123&ratio=2000',
+      classifyHuyaPlaybackSignal(
+        'Could not open/initialize audio device -> no sound.',
+      ),
+      HuyaPlaybackSignalKind.ignore,
+    );
+    expect(
+      classifyHuyaPlaybackSignal('h264: Invalid NAL unit size'),
+      HuyaPlaybackSignalKind.restartDecoder,
+    );
+    expect(
+      classifyHuyaPlaybackSignal('tls: mbedtls_ssl_read returned -0x7880'),
+      HuyaPlaybackSignalKind.restartDecoder,
+    );
+    expect(
+      classifyHuyaPlaybackSignal(
+        'http: Stream ends prematurely at 780283, '
+        'should be 18446744073709551615',
+      ),
+      HuyaPlaybackSignalKind.reopen,
+    );
+    expect(
+      classifyHuyaPlaybackSignal('end of file'),
+      HuyaPlaybackSignalKind.reopen,
     );
   });
 
-  test('虎牙播放恢复沿用上游的同线路重试后切线策略', () {
+  test('虎牙播放恢复沿用上游的重试、切线与回绕策略', () {
     expect(
       resolveHuyaPlaybackRecoveryAction(
         retryCount: 0,
         lineIndex: 0,
         lineCount: 3,
       ),
-      HuyaPlaybackRecoveryAction.retryCurrentLine,
+      HuyaPlaybackRecoveryAction.refreshCurrentLine,
     );
     expect(
       resolveHuyaPlaybackRecoveryAction(
@@ -72,13 +98,14 @@ void main() {
       ),
       HuyaPlaybackRecoveryAction.switchLine,
     );
+    // 最后一条线路也失败时回绕到线路 1，不再终止播放。
     expect(
       resolveHuyaPlaybackRecoveryAction(
         retryCount: 2,
         lineIndex: 2,
         lineCount: 3,
       ),
-      HuyaPlaybackRecoveryAction.fail,
+      HuyaPlaybackRecoveryAction.restartFromFirstLine,
     );
   });
 

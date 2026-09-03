@@ -1071,16 +1071,23 @@ class PlPlayerController with BlockConfigMixin {
   ) {
     if (httpHeaders == null) return;
     String? userAgent;
+    String? referer;
     final headers = <String, String>{};
     for (final entry in httpHeaders.entries) {
-      if (entry.key.toLowerCase() == 'user-agent') {
+      final key = entry.key.toLowerCase();
+      if (key == 'user-agent') {
         userAgent = entry.value;
+      } else if (key == 'referer' || key == 'referrer') {
+        referer = entry.value;
       } else {
         headers[entry.key] = entry.value;
       }
     }
     player.setMediaHeader(
       userAgent: userAgent,
+      // 初始化时写入的是 B 站 Referer，其他站点的播放源必须覆盖掉，
+      // 未提供时用空串显式清除。
+      referer: referer ?? '',
       headers: headers.isEmpty ? null : headers,
     );
   }
