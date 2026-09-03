@@ -35,6 +35,46 @@ void main() {
     expect(log, isNot(contains('secret')));
   });
 
+  test('虎牙播放地址使用 HTTPS 且不改写鉴权参数', () {
+    const source =
+        'http://al.flv.huya.com/live.flv?wsSecret=abc%2B123&ratio=2000';
+
+    expect(
+      normalizeHuyaPlaybackUrl(source),
+      'https://al.flv.huya.com/live.flv?wsSecret=abc%2B123&ratio=2000',
+    );
+  });
+
+  test('虎牙异常信号只在播放确实停止后触发恢复', () {
+    expect(
+      shouldRecoverHuyaPlayback(
+        completed: false,
+        playing: true,
+        positionBefore: const Duration(seconds: 10),
+        positionAfter: const Duration(seconds: 13),
+      ),
+      isFalse,
+    );
+    expect(
+      shouldRecoverHuyaPlayback(
+        completed: false,
+        playing: true,
+        positionBefore: const Duration(seconds: 10),
+        positionAfter: const Duration(seconds: 10),
+      ),
+      isTrue,
+    );
+    expect(
+      shouldRecoverHuyaPlayback(
+        completed: true,
+        playing: false,
+        positionBefore: const Duration(seconds: 10),
+        positionAfter: const Duration(seconds: 10),
+      ),
+      isTrue,
+    );
+  });
+
   test('虎牙关注用户会保存到本地并支持取消', () async {
     final service = HuyaFollowService.instance..load();
     final detail = LiveRoomDetail(

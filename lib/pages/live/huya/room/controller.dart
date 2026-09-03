@@ -25,6 +25,23 @@ String buildHuyaPlaybackSignalLog({
       'host=${host.isEmpty ? 'unknown' : host}, signal=$reason';
 }
 
+String normalizeHuyaPlaybackUrl(String source) {
+  if (source.toLowerCase().startsWith('http://')) {
+    return 'https://${source.substring('http://'.length)}';
+  }
+  return source;
+}
+
+bool shouldRecoverHuyaPlayback({
+  required bool completed,
+  required bool playing,
+  required Duration positionBefore,
+  required Duration positionAfter,
+}) {
+  if (completed || !playing) return true;
+  return positionAfter <= positionBefore + const Duration(milliseconds: 250);
+}
+
 class HuyaLiveRoomController extends GetxController {
   HuyaLiveRoomController({required this.roomId, HuyaSite? site})
     : site = site ?? HuyaLiveRepository.instance.site {
@@ -59,6 +76,8 @@ class HuyaLiveRoomController extends GetxController {
   Map<String, String>? _playHeaders;
   int _loadGeneration = 0;
   DateTime? _lastPlaybackSignalAt;
+  Timer? _recoveryCheckTimer;
+  bool _recoveringPlayback = false;
 
   @override
   void onInit() {
@@ -104,6 +123,7 @@ class HuyaLiveRoomController extends GetxController {
 
   Future<void> refreshPlaySource() async {
     if (detail.value == null || qualities.isEmpty) return;
+    _cancelPlaybackRecoveryCheck();
     await _reloadPlaySource(generation: _loadGeneration);
   }
 
@@ -111,6 +131,7 @@ class HuyaLiveRoomController extends GetxController {
     if (index < 0 || index >= qualities.length || index == qualityIndex.value) {
       return;
     }
+    _cancelPlaybackRecoveryCheck();
     qualityIndex.value = index;
     lineIndex.value = 0;
     await _reloadPlaySource(generation: _loadGeneration);
@@ -120,6 +141,7 @@ class HuyaLiveRoomController extends GetxController {
     if (index < 0 || index >= playUrls.length || index == lineIndex.value) {
       return;
     }
+    _cancelPlaybackRecoveryCheck();
     lineIndex.value = index;
     await _openCurrentSource();
   }
@@ -146,7 +168,7 @@ class HuyaLiveRoomController extends GetxController {
       if (playUrl.urls.isEmpty) {
         throw StateError('没有可用的播放线路');
       }
-      playUrls.assignAll(playUrl.urls);
+      playUrls.assignAll(playUrl.urls.map(normalizeHuyaPlaybackUrl));
       _playHeaders = playUrl.headers;
       if (lineIndex.value >= playUrls.length) {
         lineIndex.value = 0;
@@ -186,6 +208,7 @@ class HuyaLiveRoomController extends GetxController {
 
   Future<void> _recordPlaybackSignal(String reason) async {
     if (isClosed) return;
+    _schedulePlaybackRecoveryCheck(reason);
     final now = DateTime.now();
     if (_lastPlaybackSignalAt != null &&
         now.difference(_lastPlaybackSignalAt!) < const Duration(seconds: 30)) {
@@ -196,7 +219,7 @@ class HuyaLiveRoomController extends GetxController {
         ? playUrls[lineIndex.value]
         : null;
     logger.e(
-      '虎牙播放器报告异常信号；已保留当前播放，不自动刷新',
+      '虎牙播放器报告异常信号；等待确认播放是否停止',
       error: buildHuyaPlaybackSignalLog(
         roomId: roomId,
         lineIndex: lineIndex.value,
@@ -206,6 +229,60 @@ class HuyaLiveRoomController extends GetxController {
       ),
       stackTrace: StackTrace.current,
     );
+  }
+
+  void _schedulePlaybackRecoveryCheck(String reason) {
+    if (_recoveryCheckTimer != null || _recoveringPlayback) return;
+    final player = plPlayerController.videoPlayerController;
+    if (player == null) return;
+    final positionBefore = player.state.position;
+    _recoveryCheckTimer = Timer(const Duration(seconds: 3), () {
+      _recoveryCheckTimer = null;
+      final currentPlayer = plPlayerController.videoPlayerController;
+      if (isClosed ||
+          switchingSource.value ||
+          !identical(player, currentPlayer)) {
+        return;
+      }
+      final state = player.state;
+      if (!shouldRecoverHuyaPlayback(
+        completed: state.completed,
+        playing: state.playing,
+        positionBefore: positionBefore,
+        positionAfter: state.position,
+      )) {
+        return;
+      }
+      unawaited(_recoverStalledPlayback(reason));
+    });
+  }
+
+  Future<void> _recoverStalledPlayback(String reason) async {
+    if (_recoveringPlayback || isClosed || playUrls.isEmpty) return;
+    _recoveringPlayback = true;
+    try {
+      final nextLine = lineIndex.value + 1;
+      if (nextLine < playUrls.length) {
+        lineIndex.value = nextLine;
+        await _openCurrentSource();
+        return;
+      }
+      lineIndex.value = 0;
+      await _reloadPlaySource(generation: _loadGeneration);
+    } catch (exception, stackTrace) {
+      logger.e(
+        '虎牙播放恢复失败',
+        error: '$reason; $exception',
+        stackTrace: stackTrace,
+      );
+    } finally {
+      _recoveringPlayback = false;
+    }
+  }
+
+  void _cancelPlaybackRecoveryCheck() {
+    _recoveryCheckTimer?.cancel();
+    _recoveryCheckTimer = null;
   }
 
   void _startDanmaku(LiveRoomDetail roomDetail) {
@@ -273,6 +350,7 @@ class HuyaLiveRoomController extends GetxController {
   @override
   void onClose() {
     _loadGeneration++;
+    _cancelPlaybackRecoveryCheck();
     _liveDanmaku?.stop();
     _liveDanmaku = null;
     danmakuController?.clear();
