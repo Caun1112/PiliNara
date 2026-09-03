@@ -409,13 +409,11 @@ class PlPlayerController with BlockConfigMixin {
   late final bool autoEnterFullScreen = Pref.autoEnterFullScreen;
   late final bool autoExitFullscreen = Pref.autoExitFullscreen;
   late final bool autoPlayEnable = Pref.autoPlayEnable;
-  bool ignoreAppLifecyclePause = false;
   Future<void> Function(String error)? livePlaybackErrorHandler;
   Future<void> Function()? livePlaybackEndedHandler;
 
   bool shouldAutoPauseForLifecycle(AppLifecycleState state) {
     return !continuePlayInBackground.value &&
-        !ignoreAppLifecyclePause &&
         (state == AppLifecycleState.paused ||
             state == AppLifecycleState.detached);
   }

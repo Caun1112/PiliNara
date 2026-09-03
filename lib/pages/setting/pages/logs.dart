@@ -9,6 +9,7 @@ import 'package:PiliPlus/common/widgets/selection_text.dart';
 import 'package:PiliPlus/services/logger.dart';
 import 'package:PiliPlus/utils/date_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
+import 'package:PiliPlus/utils/share_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
@@ -17,6 +18,7 @@ import 'package:catcher_2/catcher_2.dart';
 import 'package:catcher_2/utils/log_printer.dart';
 import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:share_plus/share_plus.dart';
 
 const _snackBarDisplayDuration = Duration(seconds: 1);
 
@@ -89,6 +91,28 @@ class _LogsPageState extends State<LogsPage> {
     }
   }
 
+  Future<void> exportLogs() async {
+    try {
+      final logsPath = await LoggerUtils.getLogsPath();
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(logsPath.path, mimeType: 'application/json')],
+          subject: 'PiliNara 日志',
+          sharePositionOrigin: await ShareUtils.sharePositionOrigin,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('导出失败：$e'),
+            duration: _snackBarDisplayDuration,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> clearLogs() async {
     if (await LoggerUtils.clearLogs()) {
       if (mounted) {
@@ -143,6 +167,10 @@ class _LogsPageState extends State<LogsPage> {
               PopupMenuItem(
                 onTap: copyLogs,
                 child: const Text('复制日志'),
+              ),
+              PopupMenuItem(
+                onTap: exportLogs,
+                child: const Text('导出日志'),
               ),
               PopupMenuItem(
                 onTap: () =>

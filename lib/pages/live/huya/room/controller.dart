@@ -5,6 +5,7 @@ import 'package:PiliPlus/pages/live/huya/follow/service.dart';
 import 'package:PiliPlus/pages/live/huya/repository.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/models/data_source.dart';
+import 'package:PiliPlus/services/logger.dart';
 import 'package:PiliPlus/utils/num_utils.dart';
 import 'package:canvas_danmaku/canvas_danmaku.dart';
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
@@ -12,51 +13,24 @@ import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:simple_live_core/simple_live_core.dart';
 
-bool shouldRecoverHuyaPlaybackError(String reason) {
-  final normalizedReason = reason.toLowerCase();
-  return normalizedReason.contains('failed to open') ||
-      normalizedReason.contains('can not open') ||
-      normalizedReason.contains('cannot open') ||
-      normalizedReason.contains('http error') ||
-      normalizedReason.contains('ffurl_read returned') ||
-      normalizedReason.contains('connection reset') ||
-      normalizedReason.contains('connection timed out') ||
-      normalizedReason.contains('end of file');
-}
-
-enum HuyaPlaybackRecoveryAction {
-  retryCurrentLine,
-  refreshCurrentLine,
-  switchLine,
-  fail,
-}
-
-HuyaPlaybackRecoveryAction resolveHuyaPlaybackRecoveryAction({
-  required int retryCount,
+String buildHuyaPlaybackSignalLog({
+  required String roomId,
   required int lineIndex,
   required int lineCount,
+  required String? source,
+  required String reason,
 }) {
-  if (retryCount == 0) {
-    return HuyaPlaybackRecoveryAction.retryCurrentLine;
-  }
-  if (retryCount == 1) {
-    return HuyaPlaybackRecoveryAction.refreshCurrentLine;
-  }
-  if (lineIndex + 1 < lineCount) {
-    return HuyaPlaybackRecoveryAction.switchLine;
-  }
-  return HuyaPlaybackRecoveryAction.fail;
+  final host = source == null ? '' : Uri.tryParse(source)?.host ?? '';
+  return 'room=$roomId, line=${lineIndex + 1}/$lineCount, '
+      'host=${host.isEmpty ? 'unknown' : host}, signal=$reason';
 }
 
 class HuyaLiveRoomController extends GetxController {
   HuyaLiveRoomController({required this.roomId, HuyaSite? site})
     : site = site ?? HuyaLiveRepository.instance.site {
-    // LiveContainer 会在画面仍可见时把宿主场景报告为 NotVisible。
-    // 虎牙弹幕不受影响，但通用播放器会因此主动暂停视频。
     plPlayerController
-      ..ignoreAppLifecyclePause = true
-      ..livePlaybackErrorHandler = _recoverPlayback
-      ..livePlaybackEndedHandler = () => _recoverPlayback('end of file');
+      ..livePlaybackErrorHandler = _recordPlaybackSignal
+      ..livePlaybackEndedHandler = () => _recordPlaybackSignal('end of file');
   }
 
   static const int _maxChatMessages = 500;
@@ -84,9 +58,7 @@ class HuyaLiveRoomController extends GetxController {
   LiveDanmaku? _liveDanmaku;
   Map<String, String>? _playHeaders;
   int _loadGeneration = 0;
-  bool _recovering = false;
-  int _mediaErrorRetryCount = 0;
-  Timer? _stablePlaybackTimer;
+  DateTime? _lastPlaybackSignalAt;
 
   @override
   void onInit() {
@@ -132,7 +104,6 @@ class HuyaLiveRoomController extends GetxController {
 
   Future<void> refreshPlaySource() async {
     if (detail.value == null || qualities.isEmpty) return;
-    _mediaErrorRetryCount = 0;
     await _reloadPlaySource(generation: _loadGeneration);
   }
 
@@ -140,7 +111,6 @@ class HuyaLiveRoomController extends GetxController {
     if (index < 0 || index >= qualities.length || index == qualityIndex.value) {
       return;
     }
-    _mediaErrorRetryCount = 0;
     qualityIndex.value = index;
     lineIndex.value = 0;
     await _reloadPlaySource(generation: _loadGeneration);
@@ -150,7 +120,6 @@ class HuyaLiveRoomController extends GetxController {
     if (index < 0 || index >= playUrls.length || index == lineIndex.value) {
       return;
     }
-    _mediaErrorRetryCount = 0;
     lineIndex.value = index;
     await _openCurrentSource();
   }
@@ -210,56 +179,33 @@ class HuyaLiveRoomController extends GetxController {
         roomId: int.tryParse(roomId),
       );
       PlPlayerController.setPlayCallBack(plPlayerController.play);
-      _markPlaybackOpened();
     } finally {
       switchingSource.value = false;
     }
   }
 
-  void _markPlaybackOpened() {
-    _stablePlaybackTimer?.cancel();
-    _stablePlaybackTimer = Timer(const Duration(seconds: 20), () {
-      if (plPlayerController.videoPlayerController?.state.playing == true) {
-        _mediaErrorRetryCount = 0;
-      }
-    });
-  }
-
-  Future<void> _recoverPlayback(String reason) async {
-    if (isClosed || playUrls.isEmpty) return;
-    if (!shouldRecoverHuyaPlaybackError(reason)) {
+  Future<void> _recordPlaybackSignal(String reason) async {
+    if (isClosed) return;
+    final now = DateTime.now();
+    if (_lastPlaybackSignalAt != null &&
+        now.difference(_lastPlaybackSignalAt!) < const Duration(seconds: 30)) {
       return;
     }
-    if (_recovering) return;
-    _recovering = true;
-    _stablePlaybackTimer?.cancel();
-    try {
-      final action = resolveHuyaPlaybackRecoveryAction(
-        retryCount: _mediaErrorRetryCount,
+    _lastPlaybackSignalAt = now;
+    final source = lineIndex.value >= 0 && lineIndex.value < playUrls.length
+        ? playUrls[lineIndex.value]
+        : null;
+    logger.e(
+      '虎牙播放器报告异常信号；已保留当前播放，不自动刷新',
+      error: buildHuyaPlaybackSignalLog(
+        roomId: roomId,
         lineIndex: lineIndex.value,
         lineCount: playUrls.length,
-      );
-      switch (action) {
-        case HuyaPlaybackRecoveryAction.retryCurrentLine:
-          _mediaErrorRetryCount++;
-          await _openCurrentSource();
-        case HuyaPlaybackRecoveryAction.refreshCurrentLine:
-          _mediaErrorRetryCount++;
-          await Future<void>.delayed(const Duration(seconds: 1));
-          if (!isClosed) {
-            await _reloadPlaySource(generation: _loadGeneration);
-          }
-        case HuyaPlaybackRecoveryAction.switchLine:
-          _mediaErrorRetryCount = 0;
-          lineIndex.value++;
-          await _openCurrentSource();
-        case HuyaPlaybackRecoveryAction.fail:
-          error.value = '播放失败：$reason';
-          SmartDialog.showToast('播放失败: $reason');
-      }
-    } finally {
-      _recovering = false;
-    }
+        source: source,
+        reason: reason,
+      ),
+      stackTrace: StackTrace.current,
+    );
   }
 
   void _startDanmaku(LiveRoomDetail roomDetail) {
@@ -327,14 +273,12 @@ class HuyaLiveRoomController extends GetxController {
   @override
   void onClose() {
     _loadGeneration++;
-    _stablePlaybackTimer?.cancel();
     _liveDanmaku?.stop();
     _liveDanmaku = null;
     danmakuController?.clear();
     danmakuController = null;
     chatScrollController.dispose();
     PlPlayerController.setPlayCallBack(null);
-    plPlayerController.ignoreAppLifecyclePause = false;
     plPlayerController.livePlaybackErrorHandler = null;
     plPlayerController.livePlaybackEndedHandler = null;
     plPlayerController.dispose();

@@ -2,11 +2,9 @@ import 'dart:io';
 
 import 'package:PiliPlus/pages/live/huya/follow/service.dart';
 import 'package:PiliPlus/pages/live/huya/room/controller.dart';
-import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:simple_live_core/simple_live_core.dart';
 
 void main() {
@@ -20,83 +18,21 @@ void main() {
     await GStorage.init();
   });
 
-  test('虎牙直播可忽略 LiveContainer 的场景隐藏误报', () {
-    final player = PlPlayerController.getInstance(isLive: true);
-    player.continuePlayInBackground.value = false;
-
-    expect(
-      player.shouldAutoPauseForLifecycle(AppLifecycleState.paused),
-      isTrue,
+  test('虎牙播放器日志保留定位信息但不泄露鉴权参数', () {
+    final log = buildHuyaPlaybackSignalLog(
+      roomId: '518518',
+      lineIndex: 1,
+      lineCount: 3,
+      source: 'https://al.flv.huya.com/live.flv?wsSecret=secret',
+      reason: 'tcp: ffurl_read returned 403',
     );
 
-    player.ignoreAppLifecyclePause = true;
-
-    expect(
-      player.shouldAutoPauseForLifecycle(AppLifecycleState.paused),
-      isFalse,
-    );
-    expect(
-      player.shouldAutoPauseForLifecycle(AppLifecycleState.detached),
-      isFalse,
-    );
-  });
-
-  test('虎牙线路错误会触发恢复，但音频设备告警不会误切线', () {
-    expect(
-      shouldRecoverHuyaPlaybackError(
-        'Failed to open http://al.flv.huya.com/live.flv',
-      ),
-      isTrue,
-    );
-    expect(
-      shouldRecoverHuyaPlaybackError('tcp: ffurl_read returned 403'),
-      isTrue,
-    );
-    expect(
-      shouldRecoverHuyaPlaybackError(
-        'Could not open/initialize audio device -> no sound.',
-      ),
-      isFalse,
-    );
-    expect(
-      shouldRecoverHuyaPlaybackError('h264: Invalid NAL unit size'),
-      isFalse,
-    );
-  });
-
-  test('虎牙播放恢复沿用上游的同线路重试后切线策略', () {
-    expect(
-      resolveHuyaPlaybackRecoveryAction(
-        retryCount: 0,
-        lineIndex: 0,
-        lineCount: 3,
-      ),
-      HuyaPlaybackRecoveryAction.retryCurrentLine,
-    );
-    expect(
-      resolveHuyaPlaybackRecoveryAction(
-        retryCount: 1,
-        lineIndex: 0,
-        lineCount: 3,
-      ),
-      HuyaPlaybackRecoveryAction.refreshCurrentLine,
-    );
-    expect(
-      resolveHuyaPlaybackRecoveryAction(
-        retryCount: 2,
-        lineIndex: 0,
-        lineCount: 3,
-      ),
-      HuyaPlaybackRecoveryAction.switchLine,
-    );
-    expect(
-      resolveHuyaPlaybackRecoveryAction(
-        retryCount: 2,
-        lineIndex: 2,
-        lineCount: 3,
-      ),
-      HuyaPlaybackRecoveryAction.fail,
-    );
+    expect(log, contains('room=518518'));
+    expect(log, contains('line=2/3'));
+    expect(log, contains('host=al.flv.huya.com'));
+    expect(log, contains('tcp: ffurl_read returned 403'));
+    expect(log, isNot(contains('wsSecret')));
+    expect(log, isNot(contains('secret')));
   });
 
   test('虎牙关注用户会保存到本地并支持取消', () async {
