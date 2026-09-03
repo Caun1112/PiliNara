@@ -64,6 +64,41 @@ void main() {
     );
   });
 
+  test('虎牙播放恢复沿用上游的同线路重试后切线策略', () {
+    expect(
+      resolveHuyaPlaybackRecoveryAction(
+        retryCount: 0,
+        lineIndex: 0,
+        lineCount: 3,
+      ),
+      HuyaPlaybackRecoveryAction.retryCurrentLine,
+    );
+    expect(
+      resolveHuyaPlaybackRecoveryAction(
+        retryCount: 1,
+        lineIndex: 0,
+        lineCount: 3,
+      ),
+      HuyaPlaybackRecoveryAction.refreshCurrentLine,
+    );
+    expect(
+      resolveHuyaPlaybackRecoveryAction(
+        retryCount: 2,
+        lineIndex: 0,
+        lineCount: 3,
+      ),
+      HuyaPlaybackRecoveryAction.switchLine,
+    );
+    expect(
+      resolveHuyaPlaybackRecoveryAction(
+        retryCount: 2,
+        lineIndex: 2,
+        lineCount: 3,
+      ),
+      HuyaPlaybackRecoveryAction.fail,
+    );
+  });
+
   test('虎牙关注用户会保存到本地并支持取消', () async {
     final service = HuyaFollowService.instance..load();
     final detail = LiveRoomDetail(

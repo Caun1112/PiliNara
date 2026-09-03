@@ -24,6 +24,30 @@ bool shouldRecoverHuyaPlaybackError(String reason) {
       normalizedReason.contains('end of file');
 }
 
+enum HuyaPlaybackRecoveryAction {
+  retryCurrentLine,
+  refreshCurrentLine,
+  switchLine,
+  fail,
+}
+
+HuyaPlaybackRecoveryAction resolveHuyaPlaybackRecoveryAction({
+  required int retryCount,
+  required int lineIndex,
+  required int lineCount,
+}) {
+  if (retryCount == 0) {
+    return HuyaPlaybackRecoveryAction.retryCurrentLine;
+  }
+  if (retryCount == 1) {
+    return HuyaPlaybackRecoveryAction.refreshCurrentLine;
+  }
+  if (lineIndex + 1 < lineCount) {
+    return HuyaPlaybackRecoveryAction.switchLine;
+  }
+  return HuyaPlaybackRecoveryAction.fail;
+}
+
 class HuyaLiveRoomController extends GetxController {
   HuyaLiveRoomController({required this.roomId, HuyaSite? site})
     : site = site ?? HuyaLiveRepository.instance.site {
@@ -61,8 +85,7 @@ class HuyaLiveRoomController extends GetxController {
   Map<String, String>? _playHeaders;
   int _loadGeneration = 0;
   bool _recovering = false;
-  String? _pendingRecoveryReason;
-  int _recoveryCycles = 0;
+  int _mediaErrorRetryCount = 0;
   Timer? _stablePlaybackTimer;
 
   @override
@@ -109,7 +132,7 @@ class HuyaLiveRoomController extends GetxController {
 
   Future<void> refreshPlaySource() async {
     if (detail.value == null || qualities.isEmpty) return;
-    _recoveryCycles = 0;
+    _mediaErrorRetryCount = 0;
     await _reloadPlaySource(generation: _loadGeneration);
   }
 
@@ -117,7 +140,7 @@ class HuyaLiveRoomController extends GetxController {
     if (index < 0 || index >= qualities.length || index == qualityIndex.value) {
       return;
     }
-    _recoveryCycles = 0;
+    _mediaErrorRetryCount = 0;
     qualityIndex.value = index;
     lineIndex.value = 0;
     await _reloadPlaySource(generation: _loadGeneration);
@@ -127,7 +150,7 @@ class HuyaLiveRoomController extends GetxController {
     if (index < 0 || index >= playUrls.length || index == lineIndex.value) {
       return;
     }
-    _recoveryCycles = 0;
+    _mediaErrorRetryCount = 0;
     lineIndex.value = index;
     await _openCurrentSource();
   }
@@ -197,7 +220,7 @@ class HuyaLiveRoomController extends GetxController {
     _stablePlaybackTimer?.cancel();
     _stablePlaybackTimer = Timer(const Duration(seconds: 20), () {
       if (plPlayerController.videoPlayerController?.state.playing == true) {
-        _recoveryCycles = 0;
+        _mediaErrorRetryCount = 0;
       }
     });
   }
@@ -207,41 +230,35 @@ class HuyaLiveRoomController extends GetxController {
     if (!shouldRecoverHuyaPlaybackError(reason)) {
       return;
     }
-    if (_recovering) {
-      _pendingRecoveryReason = reason;
-      return;
-    }
+    if (_recovering) return;
     _recovering = true;
     _stablePlaybackTimer?.cancel();
     try {
-      final nextLine = lineIndex.value + 1;
-      if (nextLine < playUrls.length) {
-        lineIndex.value = nextLine;
-        SmartDialog.showToast('当前线路不可用，切换到线路 ${nextLine + 1}');
-        await _openCurrentSource();
-        return;
+      final action = resolveHuyaPlaybackRecoveryAction(
+        retryCount: _mediaErrorRetryCount,
+        lineIndex: lineIndex.value,
+        lineCount: playUrls.length,
+      );
+      switch (action) {
+        case HuyaPlaybackRecoveryAction.retryCurrentLine:
+          _mediaErrorRetryCount++;
+          await _openCurrentSource();
+        case HuyaPlaybackRecoveryAction.refreshCurrentLine:
+          _mediaErrorRetryCount++;
+          await Future<void>.delayed(const Duration(seconds: 1));
+          if (!isClosed) {
+            await _reloadPlaySource(generation: _loadGeneration);
+          }
+        case HuyaPlaybackRecoveryAction.switchLine:
+          _mediaErrorRetryCount = 0;
+          lineIndex.value++;
+          await _openCurrentSource();
+        case HuyaPlaybackRecoveryAction.fail:
+          error.value = '播放失败：$reason';
+          SmartDialog.showToast('播放失败: $reason');
       }
-      if (_recoveryCycles < 2) {
-        _recoveryCycles++;
-        lineIndex.value = 0;
-        SmartDialog.showToast('正在刷新虎牙播放地址');
-        await _reloadPlaySource(generation: _loadGeneration);
-        return;
-      }
-      error.value = '播放线路连续失败：$reason';
-      SmartDialog.showToast('所有播放线路均不可用，请稍后重试');
     } finally {
       _recovering = false;
-      final pendingReason = _pendingRecoveryReason;
-      _pendingRecoveryReason = null;
-      if (pendingReason != null && !isClosed) {
-        unawaited(
-          Future.delayed(
-            const Duration(milliseconds: 250),
-            () => _recoverPlayback(pendingReason),
-          ),
-        );
-      }
     }
   }
 
