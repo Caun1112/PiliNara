@@ -23,6 +23,7 @@ class HuyaRoomCard extends StatelessWidget {
           onTap: () => openHuyaPage(
             context,
             (_) => HuyaLiveRoomPage(roomId: item.roomId),
+            showGlobalBackButton: true,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

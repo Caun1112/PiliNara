@@ -2,8 +2,10 @@ import 'dart:io';
 
 import 'package:PiliPlus/pages/live/huya/follow/service.dart';
 import 'package:PiliPlus/pages/live/huya/room/controller.dart';
+import 'package:PiliPlus/pages/live/huya/route.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simple_live_core/simple_live_core.dart';
 
@@ -45,43 +47,38 @@ void main() {
     );
   });
 
-  test('虎牙直播启用 FFmpeg 流式连接自动恢复', () {
-    expect(huyaLiveStreamLavfOptions, contains('reconnect=1'));
-    expect(huyaLiveStreamLavfOptions, contains('reconnect_at_eof=1'));
-    expect(huyaLiveStreamLavfOptions, contains('reconnect_streamed=1'));
+  test('虎牙播放恢复沿用上游的同线路重试后切线策略', () {
     expect(
-      huyaLiveStreamLavfOptions,
-      contains('reconnect_on_network_error=1'),
-    );
-  });
-
-  test('虎牙异常信号只在播放确实停止后触发恢复', () {
-    expect(
-      shouldRecoverHuyaPlayback(
-        completed: false,
-        playing: true,
-        positionBefore: const Duration(seconds: 10),
-        positionAfter: const Duration(seconds: 13),
+      resolveHuyaPlaybackRecoveryAction(
+        retryCount: 0,
+        lineIndex: 0,
+        lineCount: 3,
       ),
-      isFalse,
+      HuyaPlaybackRecoveryAction.retryCurrentLine,
     );
     expect(
-      shouldRecoverHuyaPlayback(
-        completed: false,
-        playing: true,
-        positionBefore: const Duration(seconds: 10),
-        positionAfter: const Duration(seconds: 10),
+      resolveHuyaPlaybackRecoveryAction(
+        retryCount: 1,
+        lineIndex: 0,
+        lineCount: 3,
       ),
-      isTrue,
+      HuyaPlaybackRecoveryAction.refreshCurrentLine,
     );
     expect(
-      shouldRecoverHuyaPlayback(
-        completed: true,
-        playing: false,
-        positionBefore: const Duration(seconds: 10),
-        positionAfter: const Duration(seconds: 10),
+      resolveHuyaPlaybackRecoveryAction(
+        retryCount: 2,
+        lineIndex: 0,
+        lineCount: 3,
       ),
-      isTrue,
+      HuyaPlaybackRecoveryAction.switchLine,
+    );
+    expect(
+      resolveHuyaPlaybackRecoveryAction(
+        retryCount: 2,
+        lineIndex: 2,
+        lineCount: 3,
+      ),
+      HuyaPlaybackRecoveryAction.fail,
     );
   });
 
@@ -105,5 +102,18 @@ void main() {
     await service.remove(detail.roomId);
 
     expect(service.contains(detail.roomId), isFalse);
+  });
+
+  test('虎牙直播间路由显示悬浮返回按钮', () {
+    final regularRoute = HuyaPageRoute<void>(
+      builder: (_) => const SizedBox.shrink(),
+    );
+    final roomRoute = HuyaPageRoute<void>(
+      builder: (_) => const SizedBox.shrink(),
+      showGlobalBackButton: true,
+    );
+
+    expect(regularRoute.showGlobalBackButton, isFalse);
+    expect(roomRoute.showGlobalBackButton, isTrue);
   });
 }

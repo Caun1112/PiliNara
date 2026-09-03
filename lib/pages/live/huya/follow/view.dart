@@ -140,6 +140,7 @@ class _HuyaFollowPageState extends State<HuyaFollowPage> {
                 onOpen: () => openHuyaPage(
                   context,
                   (_) => HuyaLiveRoomPage(roomId: user.roomId),
+                  showGlobalBackButton: true,
                 ),
                 onRemove: () => _remove(user),
               );

@@ -13,10 +13,6 @@ import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:simple_live_core/simple_live_core.dart';
 
-const huyaLiveStreamLavfOptions =
-    'reconnect=1,reconnect_at_eof=1,reconnect_streamed=1,'
-    'reconnect_on_network_error=1,reconnect_delay_max=2';
-
 String buildHuyaPlaybackSignalLog({
   required String roomId,
   required int lineIndex,
@@ -36,14 +32,28 @@ String normalizeHuyaPlaybackUrl(String source) {
   return source;
 }
 
-bool shouldRecoverHuyaPlayback({
-  required bool completed,
-  required bool playing,
-  required Duration positionBefore,
-  required Duration positionAfter,
+enum HuyaPlaybackRecoveryAction {
+  retryCurrentLine,
+  refreshCurrentLine,
+  switchLine,
+  fail,
+}
+
+HuyaPlaybackRecoveryAction resolveHuyaPlaybackRecoveryAction({
+  required int retryCount,
+  required int lineIndex,
+  required int lineCount,
 }) {
-  if (completed || !playing) return true;
-  return positionAfter <= positionBefore + const Duration(milliseconds: 250);
+  if (retryCount == 0) {
+    return HuyaPlaybackRecoveryAction.retryCurrentLine;
+  }
+  if (retryCount == 1) {
+    return HuyaPlaybackRecoveryAction.refreshCurrentLine;
+  }
+  if (lineIndex + 1 < lineCount) {
+    return HuyaPlaybackRecoveryAction.switchLine;
+  }
+  return HuyaPlaybackRecoveryAction.fail;
 }
 
 class HuyaLiveRoomController extends GetxController {
@@ -80,8 +90,9 @@ class HuyaLiveRoomController extends GetxController {
   Map<String, String>? _playHeaders;
   int _loadGeneration = 0;
   DateTime? _lastPlaybackSignalAt;
-  Timer? _recoveryCheckTimer;
+  int _mediaErrorRetryCount = 0;
   bool _recoveringPlayback = false;
+  Timer? _stablePlaybackTimer;
 
   @override
   void onInit() {
@@ -127,7 +138,7 @@ class HuyaLiveRoomController extends GetxController {
 
   Future<void> refreshPlaySource() async {
     if (detail.value == null || qualities.isEmpty) return;
-    _cancelPlaybackRecoveryCheck();
+    _mediaErrorRetryCount = 0;
     await _reloadPlaySource(generation: _loadGeneration);
   }
 
@@ -135,7 +146,7 @@ class HuyaLiveRoomController extends GetxController {
     if (index < 0 || index >= qualities.length || index == qualityIndex.value) {
       return;
     }
-    _cancelPlaybackRecoveryCheck();
+    _mediaErrorRetryCount = 0;
     qualityIndex.value = index;
     lineIndex.value = 0;
     await _reloadPlaySource(generation: _loadGeneration);
@@ -145,7 +156,7 @@ class HuyaLiveRoomController extends GetxController {
     if (index < 0 || index >= playUrls.length || index == lineIndex.value) {
       return;
     }
-    _cancelPlaybackRecoveryCheck();
+    _mediaErrorRetryCount = 0;
     lineIndex.value = index;
     await _openCurrentSource();
   }
@@ -194,26 +205,39 @@ class HuyaLiveRoomController extends GetxController {
     error.value = null;
     switchingSource.value = true;
     try {
-      await plPlayerController.setDataSource(
-        NetworkSource(
-          videoSource: playUrls[lineIndex.value],
-          audioSource: null,
-          httpHeaders: _playHeaders,
-          streamLavfOptions: huyaLiveStreamLavfOptions,
-        ),
-        isLive: true,
-        autoplay: true,
-        roomId: int.tryParse(roomId),
+      final source = NetworkSource(
+        videoSource: playUrls[lineIndex.value],
+        audioSource: null,
+        httpHeaders: _playHeaders,
       );
+      final reopened = await plPlayerController.reopenLiveSource(source);
+      if (!reopened) {
+        await plPlayerController.setDataSource(
+          source,
+          isLive: true,
+          autoplay: true,
+          roomId: int.tryParse(roomId),
+        );
+      }
       PlPlayerController.setPlayCallBack(plPlayerController.play);
+      _markPlaybackOpened();
     } finally {
       switchingSource.value = false;
     }
   }
 
+  void _markPlaybackOpened() {
+    _stablePlaybackTimer?.cancel();
+    _stablePlaybackTimer = Timer(const Duration(seconds: 20), () {
+      if (plPlayerController.videoPlayerController?.state.playing == true) {
+        _mediaErrorRetryCount = 0;
+      }
+    });
+  }
+
   Future<void> _recordPlaybackSignal(String reason) async {
     if (isClosed) return;
-    _schedulePlaybackRecoveryCheck(reason);
+    unawaited(_recoverPlayback(reason));
     final now = DateTime.now();
     if (_lastPlaybackSignalAt != null &&
         now.difference(_lastPlaybackSignalAt!) < const Duration(seconds: 30)) {
@@ -236,52 +260,34 @@ class HuyaLiveRoomController extends GetxController {
     );
   }
 
-  void _schedulePlaybackRecoveryCheck(String reason) {
-    if (_recoveryCheckTimer != null || _recoveringPlayback) return;
-    final player = plPlayerController.videoPlayerController;
-    if (player == null) return;
-    final deadline = DateTime.now().add(const Duration(seconds: 30));
-
-    void scheduleNext(Duration positionBefore) {
-      _recoveryCheckTimer = Timer(const Duration(seconds: 3), () {
-        _recoveryCheckTimer = null;
-        final currentPlayer = plPlayerController.videoPlayerController;
-        if (isClosed ||
-            switchingSource.value ||
-            !identical(player, currentPlayer)) {
-          return;
-        }
-        final state = player.state;
-        if (shouldRecoverHuyaPlayback(
-          completed: state.completed,
-          playing: state.playing,
-          positionBefore: positionBefore,
-          positionAfter: state.position,
-        )) {
-          unawaited(_recoverStalledPlayback(reason));
-          return;
-        }
-        if (DateTime.now().isBefore(deadline)) {
-          scheduleNext(state.position);
-        }
-      });
-    }
-
-    scheduleNext(player.state.position);
-  }
-
-  Future<void> _recoverStalledPlayback(String reason) async {
+  Future<void> _recoverPlayback(String reason) async {
     if (_recoveringPlayback || isClosed || playUrls.isEmpty) return;
     _recoveringPlayback = true;
+    _stablePlaybackTimer?.cancel();
     try {
-      final nextLine = lineIndex.value + 1;
-      if (nextLine < playUrls.length) {
-        lineIndex.value = nextLine;
-        await _openCurrentSource();
-        return;
+      final action = resolveHuyaPlaybackRecoveryAction(
+        retryCount: _mediaErrorRetryCount,
+        lineIndex: lineIndex.value,
+        lineCount: playUrls.length,
+      );
+      switch (action) {
+        case HuyaPlaybackRecoveryAction.retryCurrentLine:
+          _mediaErrorRetryCount++;
+          await _openCurrentSource();
+        case HuyaPlaybackRecoveryAction.refreshCurrentLine:
+          _mediaErrorRetryCount++;
+          await Future<void>.delayed(const Duration(seconds: 1));
+          if (!isClosed) {
+            await _reloadPlaySource(generation: _loadGeneration);
+          }
+        case HuyaPlaybackRecoveryAction.switchLine:
+          _mediaErrorRetryCount = 0;
+          lineIndex.value++;
+          await _openCurrentSource();
+        case HuyaPlaybackRecoveryAction.fail:
+          error.value = '播放失败：$reason';
+          SmartDialog.showToast('播放失败: $reason');
       }
-      lineIndex.value = 0;
-      await _reloadPlaySource(generation: _loadGeneration);
     } catch (exception, stackTrace) {
       logger.e(
         '虎牙播放恢复失败',
@@ -291,11 +297,6 @@ class HuyaLiveRoomController extends GetxController {
     } finally {
       _recoveringPlayback = false;
     }
-  }
-
-  void _cancelPlaybackRecoveryCheck() {
-    _recoveryCheckTimer?.cancel();
-    _recoveryCheckTimer = null;
   }
 
   void _startDanmaku(LiveRoomDetail roomDetail) {
@@ -363,7 +364,7 @@ class HuyaLiveRoomController extends GetxController {
   @override
   void onClose() {
     _loadGeneration++;
-    _cancelPlaybackRecoveryCheck();
+    _stablePlaybackTimer?.cancel();
     _liveDanmaku?.stop();
     _liveDanmaku = null;
     danmakuController?.clear();

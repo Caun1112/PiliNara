@@ -1051,24 +1051,8 @@ class PlPlayerController with BlockConfigMixin {
       }
     }
 
-    if (dataSource case NetworkSource(:final httpHeaders?)) {
-      String? userAgent;
-      final headers = <String, String>{};
-      for (final entry in httpHeaders.entries) {
-        if (entry.key.toLowerCase() == 'user-agent') {
-          userAgent = entry.value;
-        } else {
-          headers[entry.key] = entry.value;
-        }
-      }
-      player.setMediaHeader(
-        userAgent: userAgent,
-        headers: headers.isEmpty ? null : headers,
-      );
-    }
-
-    if (dataSource case NetworkSource(:final streamLavfOptions?)) {
-      player.setProperty('stream-lavf-o', streamLavfOptions);
+    if (dataSource case NetworkSource(:final httpHeaders)) {
+      _setNetworkSourceHeaders(player, httpHeaders);
     }
 
     await player.open(
@@ -1079,6 +1063,39 @@ class PlPlayerController with BlockConfigMixin {
       ),
       play: false,
     );
+  }
+
+  void _setNetworkSourceHeaders(
+    Player player,
+    Map<String, String>? httpHeaders,
+  ) {
+    if (httpHeaders == null) return;
+    String? userAgent;
+    final headers = <String, String>{};
+    for (final entry in httpHeaders.entries) {
+      if (entry.key.toLowerCase() == 'user-agent') {
+        userAgent = entry.value;
+      } else {
+        headers[entry.key] = entry.value;
+      }
+    }
+    player.setMediaHeader(
+      userAgent: userAgent,
+      headers: headers.isEmpty ? null : headers,
+    );
+  }
+
+  Future<bool> reopenLiveSource(NetworkSource source) async {
+    final player = _videoPlayerController;
+    if (player == null) return false;
+    dataSource = source;
+    isLive = true;
+    _setNetworkSourceHeaders(player, source.httpHeaders);
+    await player.open(
+      Media(source.videoSource, extras: liveBuffer),
+      play: true,
+    );
+    return true;
   }
 
   Future<void>? refreshPlayer() {

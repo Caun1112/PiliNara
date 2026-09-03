@@ -44,13 +44,14 @@ class HuyaLivePage extends StatelessWidget {
                 Positioned.fill(
                   child: HuyaPagedRoomGrid(
                     loadPage: repository.getRecommendations,
-                    bottomPadding: 260,
+                    bottomPadding:
+                        300 + MediaQuery.viewPaddingOf(context).bottom,
                   ),
                 ),
-                const Positioned(
+                Positioned(
                   right: 8,
-                  bottom: 128,
-                  child: _HuyaQuickActions(),
+                  bottom: 160 + MediaQuery.viewPaddingOf(context).bottom,
+                  child: const _HuyaQuickActions(),
                 ),
               ],
             ),
