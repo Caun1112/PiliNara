@@ -23,7 +23,7 @@ double calculateFloatingBackButtonBottom({
 }
 
 abstract interface class GlobalBackButtonRoute {
-  bool get showGlobalBackButton;
+  bool shouldShowGlobalBackButton(Orientation orientation);
 }
 
 class GlobalBackButtonObserver extends NavigatorObserver {
@@ -31,14 +31,16 @@ class GlobalBackButtonObserver extends NavigatorObserver {
   final routeRevision = ValueNotifier<int>(0);
   Route<dynamic>? _topRoute;
 
-  bool get shouldShow {
+  bool shouldShow(Orientation orientation) {
     final route = _topRoute;
     if (route == null) return false;
 
     final routeName = route.settings.name ?? Get.currentRoute;
     if (routeName.startsWith('/videoV')) return false;
     if (route is GlobalBackButtonRoute) {
-      return (route as GlobalBackButtonRoute).showGlobalBackButton;
+      return (route as GlobalBackButtonRoute).shouldShowGlobalBackButton(
+        orientation,
+      );
     }
     return route is! PopupRoute;
   }
@@ -76,7 +78,8 @@ class GlobalBackButtonOverlay extends StatelessWidget {
     return ValueListenableBuilder<int>(
       valueListenable: observer.routeRevision,
       builder: (context, _, child) {
-        if (!observer.canPop.value || !observer.shouldShow) {
+        final orientation = MediaQuery.orientationOf(context);
+        if (!observer.canPop.value || !observer.shouldShow(orientation)) {
           return child!;
         }
 

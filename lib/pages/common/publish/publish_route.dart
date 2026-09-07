@@ -20,8 +20,12 @@ class PublishRoute<T> extends PopupRoute<T> implements GlobalBackButtonRoute {
 
   final RoutePageBuilder pageBuilder;
 
-  @override
   final bool showGlobalBackButton;
+
+  @override
+  bool shouldShowGlobalBackButton(Orientation orientation) {
+    return showGlobalBackButton;
+  }
 
   @override
   final bool barrierDismissible;
