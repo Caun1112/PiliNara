@@ -1,10 +1,8 @@
-import 'dart:math' as math;
-
-import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
 import 'package:PiliPlus/common/widgets/loading_widget/http_error.dart';
 import 'package:PiliPlus/pages/danmaku/danmaku_model.dart';
 import 'package:PiliPlus/pages/live/huya/room/controller.dart';
+import 'package:PiliPlus/pages/live/huya/room/layout.dart';
 import 'package:PiliPlus/pages/video/widgets/header_control.dart';
 import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/plugin/pl_player/utils/danmaku_options.dart';
@@ -99,62 +97,14 @@ class _HuyaLiveRoomPageState extends State<HuyaLiveRoomPage> {
         onReload: _controller.load,
       );
     }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (isFullScreen) {
-          return _buildPlayer(
-            width: constraints.maxWidth,
-            height: constraints.maxHeight,
-            isFullScreen: true,
-          );
-        }
-
-        final useSidePanel = constraints.maxWidth >= 900;
-        if (useSidePanel) {
-          final sideWidth = math.min(380.0, constraints.maxWidth * 0.34);
-          return Row(
-            children: [
-              Expanded(
-                child: Center(
-                  child: AspectRatio(
-                    aspectRatio: Style.aspectRatio16x9,
-                    child: LayoutBuilder(
-                      builder: (context, playerConstraints) => _buildPlayer(
-                        width: playerConstraints.maxWidth,
-                        height: playerConstraints.maxHeight,
-                        isFullScreen: false,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: sideWidth,
-                child: _HuyaChatPanel(controller: _controller),
-              ),
-            ],
-          );
-        }
-
-        final playerHeight = math.min(
-          constraints.maxWidth / Style.aspectRatio16x9,
-          constraints.maxHeight * 0.62,
-        );
-        return Column(
-          children: [
-            SizedBox(
-              width: constraints.maxWidth,
-              height: playerHeight,
-              child: _buildPlayer(
-                width: constraints.maxWidth,
-                height: playerHeight,
-                isFullScreen: false,
-              ),
-            ),
-            Expanded(child: _HuyaChatPanel(controller: _controller)),
-          ],
-        );
-      },
+    return HuyaLiveRoomLayout(
+      isFullScreen: isFullScreen,
+      playerBuilder: (size) => _buildPlayer(
+        width: size.width,
+        height: size.height,
+        isFullScreen: isFullScreen,
+      ),
+      chatPanel: _HuyaChatPanel(controller: _controller),
     );
   }
 

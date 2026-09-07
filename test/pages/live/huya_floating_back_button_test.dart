@@ -21,8 +21,59 @@ void main() {
 
     navigatorKey.currentState!.push(
       HuyaPageRoute<void>(
-        builder: (_) => const Scaffold(body: Text('虎牙直播间')),
+        builder: (_) => const Scaffold(
+          body: Column(
+            children: [
+              Text('虎牙直播间'),
+              Expanded(child: _PlaybackProbe()),
+            ],
+          ),
+        ),
         showGlobalBackButton: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('返回'), findsOneWidget);
+    final playback = tester.state<_PlaybackProbeState>(
+      find.byType(_PlaybackProbe),
+    );
+    final texture = tester.renderObject(find.byType(Texture));
+
+    tester.view.physicalSize = const Size(800, 400);
+    await tester.pumpAndSettle();
+    expect(find.text('虎牙直播间'), findsOneWidget);
+    expect(find.byTooltip('返回'), findsNothing);
+    expect(playback.deactivations, 0);
+    expect(playback.disposed, isFalse);
+    expect(tester.renderObject(find.byType(Texture)), same(texture));
+
+    tester.view.physicalSize = const Size(400, 800);
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('返回'), findsOneWidget);
+    expect(playback.deactivations, 0);
+    expect(playback.disposed, isFalse);
+    expect(tester.renderObject(find.byType(Texture)), same(texture));
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(find.text('首页'), findsOneWidget);
+    expect(find.byTooltip('返回'), findsNothing);
+    expect(playback.disposed, isTrue);
+  });
+
+  testWidgets('B站直播横屏隐藏悬浮返回，恢复竖屏后可正常返回', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(400, 800);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final navigatorKey = GlobalKey<NavigatorState>();
+    final observer = GlobalBackButtonObserver();
+    await tester.pumpWidget(_app(navigatorKey, observer));
+    await tester.pumpAndSettle();
+
+    navigatorKey.currentState!.push(
+      MaterialPageRoute<void>(
+        settings: const RouteSettings(name: '/liveRoom'),
+        builder: (_) => const Scaffold(body: Text('B站直播间')),
       ),
     );
     await tester.pumpAndSettle();
@@ -30,7 +81,7 @@ void main() {
 
     tester.view.physicalSize = const Size(800, 400);
     await tester.pumpAndSettle();
-    expect(find.text('虎牙直播间'), findsOneWidget);
+    expect(find.text('B站直播间'), findsOneWidget);
     expect(find.byTooltip('返回'), findsNothing);
 
     tester.view.physicalSize = const Size(400, 800);
@@ -39,7 +90,6 @@ void main() {
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(find.text('首页'), findsOneWidget);
-    expect(find.byTooltip('返回'), findsNothing);
   });
 
   testWidgets('横屏进入虎牙直播隐藏悬浮返回，其他页面和弹层保持原有行为', (tester) async {
@@ -90,6 +140,33 @@ void main() {
       await tester.pumpAndSettle();
     }
   });
+}
+
+class _PlaybackProbe extends StatefulWidget {
+  const _PlaybackProbe();
+
+  @override
+  State<_PlaybackProbe> createState() => _PlaybackProbeState();
+}
+
+class _PlaybackProbeState extends State<_PlaybackProbe> {
+  int deactivations = 0;
+  bool disposed = false;
+
+  @override
+  void deactivate() {
+    deactivations++;
+    super.deactivate();
+  }
+
+  @override
+  void dispose() {
+    disposed = true;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const Texture(textureId: 1);
 }
 
 Widget _app(

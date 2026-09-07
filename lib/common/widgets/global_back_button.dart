@@ -37,6 +37,10 @@ class GlobalBackButtonObserver extends NavigatorObserver {
 
     final routeName = route.settings.name ?? Get.currentRoute;
     if (routeName.startsWith('/videoV')) return false;
+    if (routeName.startsWith('/liveRoom') &&
+        orientation == Orientation.landscape) {
+      return false;
+    }
     if (route is GlobalBackButtonRoute) {
       return (route as GlobalBackButtonRoute).shouldShowGlobalBackButton(
         orientation,
@@ -79,29 +83,29 @@ class GlobalBackButtonOverlay extends StatelessWidget {
       valueListenable: observer.routeRevision,
       builder: (context, _, child) {
         final orientation = MediaQuery.orientationOf(context);
-        if (!observer.canPop.value || !observer.shouldShow(orientation)) {
-          return child!;
-        }
-
+        final shouldShow =
+            observer.canPop.value && observer.shouldShow(orientation);
         final padding = MediaQuery.viewPaddingOf(context);
         final height = MediaQuery.sizeOf(context).height;
+        // 保持页面容器稳定，按钮显隐不能重新挂载播放器。
         return Stack(
           children: [
             child!,
-            Positioned(
-              right: padding.right + kFloatingActionButtonMargin,
-              bottom: calculateFloatingBackButtonBottom(
-                height: height,
-                safeTop: padding.top,
-                safeBottom: padding.bottom,
+            if (shouldShow)
+              Positioned(
+                right: padding.right + kFloatingActionButtonMargin,
+                bottom: calculateFloatingBackButtonBottom(
+                  height: height,
+                  safeTop: padding.top,
+                  safeBottom: padding.bottom,
+                ),
+                child: FloatingActionButton(
+                  heroTag: 'global-back-button',
+                  tooltip: '返回',
+                  onPressed: onBack,
+                  child: const Icon(Icons.arrow_back_rounded),
+                ),
               ),
-              child: FloatingActionButton(
-                heroTag: 'global-back-button',
-                tooltip: '返回',
-                onPressed: onBack,
-                child: const Icon(Icons.arrow_back_rounded),
-              ),
-            ),
           ],
         );
       },
