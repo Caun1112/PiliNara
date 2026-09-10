@@ -23,7 +23,7 @@ double calculateFloatingBackButtonBottom({
 }
 
 abstract interface class GlobalBackButtonRoute {
-  bool get showGlobalBackButton;
+  bool shouldShowGlobalBackButton(Orientation orientation);
 }
 
 class GlobalBackButtonObserver extends NavigatorObserver {
@@ -31,14 +31,20 @@ class GlobalBackButtonObserver extends NavigatorObserver {
   final routeRevision = ValueNotifier<int>(0);
   Route<dynamic>? _topRoute;
 
-  bool get shouldShow {
+  bool shouldShow(Orientation orientation) {
     final route = _topRoute;
     if (route == null) return false;
 
     final routeName = route.settings.name ?? Get.currentRoute;
     if (routeName.startsWith('/videoV')) return false;
+    if (routeName.startsWith('/liveRoom') &&
+        orientation == Orientation.landscape) {
+      return false;
+    }
     if (route is GlobalBackButtonRoute) {
-      return (route as GlobalBackButtonRoute).showGlobalBackButton;
+      return (route as GlobalBackButtonRoute).shouldShowGlobalBackButton(
+        orientation,
+      );
     }
     return route is! PopupRoute;
   }
@@ -76,29 +82,30 @@ class GlobalBackButtonOverlay extends StatelessWidget {
     return ValueListenableBuilder<int>(
       valueListenable: observer.routeRevision,
       builder: (context, _, child) {
-        if (!observer.canPop.value || !observer.shouldShow) {
-          return child!;
-        }
-
+        final orientation = MediaQuery.orientationOf(context);
+        final shouldShow =
+            observer.canPop.value && observer.shouldShow(orientation);
         final padding = MediaQuery.viewPaddingOf(context);
         final height = MediaQuery.sizeOf(context).height;
+        // 保持页面容器稳定，按钮显隐不能重新挂载播放器。
         return Stack(
           children: [
             child!,
-            Positioned(
-              right: padding.right + kFloatingActionButtonMargin,
-              bottom: calculateFloatingBackButtonBottom(
-                height: height,
-                safeTop: padding.top,
-                safeBottom: padding.bottom,
+            if (shouldShow)
+              Positioned(
+                right: padding.right + kFloatingActionButtonMargin,
+                bottom: calculateFloatingBackButtonBottom(
+                  height: height,
+                  safeTop: padding.top,
+                  safeBottom: padding.bottom,
+                ),
+                child: FloatingActionButton(
+                  heroTag: 'global-back-button',
+                  tooltip: '返回',
+                  onPressed: onBack,
+                  child: const Icon(Icons.arrow_back_rounded),
+                ),
               ),
-              child: FloatingActionButton(
-                heroTag: 'global-back-button',
-                tooltip: '返回',
-                onPressed: onBack,
-                child: const Icon(Icons.arrow_back_rounded),
-              ),
-            ),
           ],
         );
       },

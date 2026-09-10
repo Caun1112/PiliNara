@@ -2000,7 +2000,9 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
   Widget _withFloatingBackButton(Widget child) {
     return Obx(() {
       final shouldShow =
-          !videoDetailController.plPlayerController.isPipMode && !isFullScreen;
+          isPortrait &&
+          !videoDetailController.plPlayerController.isPipMode &&
+          !isFullScreen;
       return Stack(
         children: [
           child,

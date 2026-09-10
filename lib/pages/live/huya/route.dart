@@ -8,8 +8,12 @@ class HuyaPageRoute<T> extends MaterialPageRoute<T>
     this.showGlobalBackButton = false,
   });
 
-  @override
   final bool showGlobalBackButton;
+
+  @override
+  bool shouldShowGlobalBackButton(Orientation orientation) {
+    return showGlobalBackButton && orientation == Orientation.portrait;
+  }
 }
 
 Future<T?> openHuyaPage<T>(
