@@ -76,7 +76,6 @@ jobs:
       - name: Upload ios release
         uses: actions/upload-artifact@v7
         with:
-          archive: false
           name: iOS-release
           path: |
             PiliNara_ios_*.ipa
