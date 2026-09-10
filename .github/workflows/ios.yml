@@ -30,14 +30,19 @@ jobs:
         shell: pwsh
         run: lib/scripts/build.ps1
 
+      - name: 校验仓库依赖锁文件
+        run: |
+          flutter pub get --enforce-lockfile
+          git diff --exit-code -- pubspec.lock
+
       - name: Apply Patch
         shell: pwsh
         run: lib/scripts/patch.ps1 iOS
 
-      - name: 校验依赖锁文件
+      - name: 校验并记录 iOS 依赖
         run: |
           flutter pub get --enforce-lockfile
-          git diff --exit-code -- pubspec.lock
+          cp pubspec.lock BUILD-pubspec.lock
 
       - name: 静态分析
         run: flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
@@ -77,3 +82,4 @@ jobs:
             PiliNara_ios_*.ipa
             IPA-SHA256.txt
             SOURCE-COMMIT.txt
+            BUILD-pubspec.lock
