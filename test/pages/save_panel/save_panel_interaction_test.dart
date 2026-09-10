@@ -8,6 +8,7 @@ import 'package:PiliPlus/utils/path_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:get/get.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -265,6 +266,8 @@ void main() {
     );
 
     await tester.tap(find.text('精彩观点'));
+    // 等待推荐提示结束，避免 Toast 定时器泄漏到下一条测试。
+    await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
 
     final highlightChip = find.ancestor(
@@ -355,6 +358,8 @@ void main() {
     );
 
     await tester.tap(find.text('精彩观点'));
+    // 等待推荐提示结束，避免 Toast 定时器泄漏到下一条测试。
+    await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
 
     expect(
@@ -405,6 +410,8 @@ void main() {
 
     await _openSavePanel(tester, _smartReply());
     await tester.tap(find.text('精彩观点'));
+    // 等待推荐提示结束，避免 Toast 定时器泄漏到下一条测试。
+    await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
 
     final overlayRect = tester.getRect(
@@ -479,6 +486,8 @@ void main() {
 
     await _openSavePanel(tester, _smartReply());
     await tester.tap(find.text('精彩观点'));
+    // 等待推荐提示结束，避免 Toast 定时器泄漏到下一条测试。
+    await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
 
     final highlightChip = find.ancestor(
@@ -529,6 +538,8 @@ Finder _textButtonIn(Finder parent) {
 Future<void> _openSavePanel(WidgetTester tester, ReplyInfo reply) async {
   await tester.pumpWidget(
     GetMaterialApp(
+      builder: FlutterSmartDialog.init(),
+      navigatorObservers: [FlutterSmartDialog.observer],
       home: Scaffold(
         body: Center(
           child: TextButton(

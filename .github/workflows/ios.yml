@@ -34,13 +34,29 @@ jobs:
         shell: pwsh
         run: lib/scripts/patch.ps1 iOS
 
+      - name: 校验依赖锁文件
+        run: |
+          flutter pub get --enforce-lockfile
+          git diff --exit-code -- pubspec.lock
+
+      - name: 静态分析
+        run: flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
+
+      - name: 回归测试
+        run: flutter test --no-pub
+
       - name: Build iOS
         run: |
           flutter build ios --release --no-codesign --dart-define-from-file=pili_release.json --no-pub
-          ln -sf ./build/ios/iphoneos Payload
+          mkdir -p Payload
+          cp -R build/ios/iphoneos/Runner.app Payload/Runner.app
           # make AltSign happy...
           find Payload/Runner.app/Frameworks -type d -name "*.framework" -exec codesign --force --sign - --preserve-metadata=identifier,entitlements {} \;
-          zip -r9 PiliNara_ios_${{env.version}}.ipa Payload/runner.app
+          zip -qr9 PiliNara_ios_${{env.version}}_unsigned.ipa Payload/Runner.app
+          unzip -t PiliNara_ios_${{env.version}}_unsigned.ipa | tail -1
+          test ! -f Payload/Runner.app/embedded.mobileprovision
+          shasum -a 256 PiliNara_ios_${{env.version}}_unsigned.ipa > IPA-SHA256.txt
+          printf '%s\n' '${{ github.sha }}' > SOURCE-COMMIT.txt
 
       - name: Release
         if: ${{ github.event.inputs.tag != '' }}
@@ -57,4 +73,7 @@ jobs:
         with:
           archive: false
           name: iOS-release
-          path: PiliNara_ios_*.ipa
+          path: |
+            PiliNara_ios_*.ipa
+            IPA-SHA256.txt
+            SOURCE-COMMIT.txt
