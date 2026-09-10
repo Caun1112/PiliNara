@@ -222,7 +222,7 @@ class _DownloadPanelState extends State<DownloadPanel> {
       return null;
     }
     final preferAudioQa = Pref.defaultAudioQa;
-    final audioIds = audioList.map((audio) => audio.id!).toList();
+    final audioIds = audioList.map((audio) => audio.id).toList();
     int closestNumber = audioIds.findClosestTarget(
       (id) => id <= preferAudioQa,
       (a, b) => a > b ? a : b,

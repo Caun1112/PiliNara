@@ -469,26 +469,6 @@ abstract final class Pref {
   );
 
   static List<VideoDecodeFormatType> get preferCodecs {
-    // TODO: remove next 2 version
-    if (_setting.get('defaultDecode') case String codecStr) {
-      String? codecStr2 = _setting.get('secondDecode');
-      _setting.deleteAll(const ['defaultDecode', 'secondDecode']);
-      final codecs = [
-        VideoDecodeFormatType.values.firstWhere(
-          (i) => i.codes.contains(codecStr),
-        ),
-        if (codecStr2 != null && codecStr2 != codecStr)
-          VideoDecodeFormatType.values.firstWhere(
-            (i) => i.codes.contains(codecStr2),
-          ),
-      ];
-      _setting.put(
-        SettingBoxKey.preferCodecs,
-        codecs.map((i) => i.name).toList(),
-      );
-      return codecs;
-    }
-
     final codecs = _setting.get(SettingBoxKey.preferCodecs);
     if (codecs is List) {
       return codecs.map((i) => VideoDecodeFormatType.values.byName(i)).toList();
@@ -964,8 +944,26 @@ abstract final class Pref {
     defaultValue: LiveQuality.superHD.code,
   );
 
-  static int get appFontWeight =>
-      _setting.get(SettingBoxKey.appFontWeight, defaultValue: -1);
+  static FontWeight get appFontWeight {
+    // TODO: remove next 2 version
+    const appFontWeightV1 = 'appFontWeight';
+    final int? valV1 = _setting.get(appFontWeightV1);
+    if (valV1 != null) {
+      _setting.delete(appFontWeightV1);
+      if (valV1 == -1) {
+        return .normal;
+      } else {
+        _setting.put(SettingBoxKey.appFontWeightV2, valV1);
+        return .values[valV1];
+      }
+    }
+
+    final int? val = _setting.get(SettingBoxKey.appFontWeightV2);
+    if (val == null) {
+      return .normal;
+    }
+    return .values[val];
+  }
 
   static String? get customFontPath =>
       _setting.get(SettingBoxKey.customFontPath);
@@ -1426,6 +1424,9 @@ abstract final class Pref {
   static bool get continuePlayInBackground =>
       _setting.get(SettingBoxKey.continuePlayInBackground, defaultValue: false);
 
+  static bool get autoAudioOnlyInBackground =>
+      _setting.get(SettingBoxKey.autoAudioOnlyInBackground, defaultValue: false);
+
   static bool get directExitOnBack =>
       _setting.get(SettingBoxKey.directExitOnBack, defaultValue: false);
 
@@ -1642,6 +1643,26 @@ abstract final class Pref {
 
   static double get maxVolume => // desktop
       _setting.get(SettingBoxKey.maxVolume, defaultValue: 2.0);
+
+  static int _videoPictureParameter(String key) {
+    final value = _setting.get(key, defaultValue: 0);
+    final number = value is num ? value.round() : int.tryParse('$value') ?? 0;
+    return number.clamp(-100, 100).toInt();
+  }
+
+  static int get videoBrightness =>
+      _videoPictureParameter(SettingBoxKey.videoBrightness);
+
+  static int get videoContrast =>
+      _videoPictureParameter(SettingBoxKey.videoContrast);
+
+  static int get videoSaturation =>
+      _videoPictureParameter(SettingBoxKey.videoSaturation);
+
+  static int get videoGamma =>
+      _videoPictureParameter(SettingBoxKey.videoGamma);
+
+  static int get videoHue => _videoPictureParameter(SettingBoxKey.videoHue);
 
   static List? get liveStream => _setting.get(SettingBoxKey.liveStream);
 
