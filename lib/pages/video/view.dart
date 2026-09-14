@@ -1999,6 +1999,9 @@ class _VideoDetailPageVState extends State<VideoDetailPageV>
 
   Widget _withFloatingBackButton(Widget child) {
     return Obx(() {
+      // Read the observable before the layout checks: landscape/PiP can
+      // short-circuit them, leaving Obx without a subscription and throwing.
+      final isFullScreen = this.isFullScreen;
       final shouldShow =
           isPortrait &&
           !videoDetailController.plPlayerController.isPipMode &&
