@@ -370,11 +370,13 @@ class MyApp extends StatelessWidget {
         child: child!,
       );
     }
-    child = GlobalBackButtonOverlay(
-      observer: _backButtonObserver,
-      onBack: _onBack,
-      child: child,
-    );
+    if (!Platform.isMacOS) {
+      child = GlobalBackButtonOverlay(
+        observer: _backButtonObserver,
+        onBack: _onBack,
+        child: child,
+      );
+    }
     return BackDetector(
       onBack: _onBack,
       child: child,

@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:math';
 
 import 'package:PiliPlus/common/style.dart';
@@ -504,7 +505,7 @@ class _DynamicDetailPageState
 
   Widget _buildBottom() {
     if (!controller.showDynActionBar) {
-      return fabButton;
+      return Platform.isMacOS ? const SizedBox.shrink() : fabButton;
     }
 
     final primary = theme.colorScheme.primary;
@@ -548,13 +549,14 @@ class _DynamicDetailPageState
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(
-              right: kFloatingActionButtonMargin,
-              bottom: kFloatingActionButtonMargin,
+          if (!Platform.isMacOS)
+            Padding(
+              padding: const EdgeInsets.only(
+                right: kFloatingActionButtonMargin,
+                bottom: kFloatingActionButtonMargin,
+              ),
+              child: replyButton,
             ),
-            child: replyButton,
-          ),
           Container(
             decoration: BoxDecoration(
               color: theme.colorScheme.surface,
