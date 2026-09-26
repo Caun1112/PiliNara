@@ -342,7 +342,8 @@ abstract final class LocalCacheKey {
       cdnNodeList = 'cdnNodeList',
       cdnNodeListTime = 'cdnNodeListTime',
       cdnNodeRegion = 'cdnNodeRegion',
-      huyaFollowUsers = 'huyaFollowUsers';
+      huyaFollowUsers = 'huyaFollowUsers',
+      biliFollowRooms = 'biliFollowRooms';
 }
 
 abstract final class VideoBoxKey {

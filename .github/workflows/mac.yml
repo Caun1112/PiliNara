@@ -37,6 +37,12 @@ jobs:
       - name: Build Mac
         run: flutter build macos --release --dart-define-from-file=pili_release.json --no-pub
 
+      - name: Archive macOS App
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent build/macos/Build/Products/Release/PiliNara.app PiliNara_macos_${{ env.version }}.app.zip
+          shasum -a 256 PiliNara_macos_*.app.zip > MACOS-SHA256.txt
+          printf '%s\n' '${{ github.sha }}' > SOURCE-COMMIT.txt
+
       - name: Prepare Upload
         run: |
           npm install --global create-dmg
@@ -59,6 +65,9 @@ jobs:
       - name: Upload macos release
         uses: actions/upload-artifact@v7
         with:
-          archive: false
           name: macOS-release
-          path: PiliNara_macos_*.dmg
+          path: |
+            PiliNara_macos_*.dmg
+            PiliNara_macos_*.app.zip
+            MACOS-SHA256.txt
+            SOURCE-COMMIT.txt

@@ -503,7 +503,7 @@ class _SavePanelState extends State<SavePanel> {
         : 0.0;
     final sourceHeight = showBottom ? 112.0 : 12.0;
     final incompleteHintHeight = _replyLoadIncomplete ? 40.0 : 0.0;
-    const storyHeaderAndSpacing = 98.0;
+    const cardSpacing = 36.0;
     return max(
       0,
       usableScreenHeight -
@@ -511,8 +511,30 @@ class _SavePanelState extends State<SavePanel> {
           coverHeight -
           sourceHeight -
           incompleteHintHeight -
-          storyHeaderAndSpacing,
+          cardSpacing,
     );
+  }
+
+  void _selectAllReplies() {
+    if (_isCapturing || _isActionInProgress || _isLoadingReplies) return;
+    if (_item case final ReplyInfo reply) {
+      setState(() {
+        _selectedReplyIds
+          ..clear()
+          ..addAll(reply.replies.map((item) => item.id.toInt()));
+        _selectedReplyOrder
+          ..clear()
+          ..addAll(_selectedReplyIds);
+        _selectionReasons.clear();
+        _smartReplyMode = null;
+        _selectionOrderCustomized = false;
+      });
+      SmartDialog.showToast(
+        _replyLoadIncomplete
+            ? '已全选当前加载的回复；部分回复加载失败'
+            : '已全选 ${_selectedReplyIds.length} 条回复，可复制图片',
+      );
+    }
   }
 
   void _applySmartReplySelection(SmartReplyMode mode) {
@@ -868,8 +890,11 @@ class _SavePanelState extends State<SavePanel> {
               spacing: 6,
               children: [
                 for (final row in [
-                  SmartReplyMode.values.sublist(0, 2),
-                  SmartReplyMode.values.sublist(2, 4),
+                  <SmartReplyMode?>[
+                    SmartReplyMode.highlight,
+                    SmartReplyMode.debate,
+                  ],
+                  <SmartReplyMode?>[SmartReplyMode.knowledge, null],
                 ])
                   Row(
                     spacing: 6,
@@ -880,20 +905,25 @@ class _SavePanelState extends State<SavePanel> {
                             height: 44,
                             child: Tooltip(
                               message: item == SmartReplyMode.knowledge
-                                  ? '${item.description}；只做文本规则推荐，不代表事实核验'
-                                  : item.description,
+                                  ? '${item!.description}；只做文本规则推荐，不代表事实核验'
+                                  : item?.description ?? '选择当前主评论下的全部回复，保留原始顺序',
                               child: ChoiceChip(
                                 label: SizedBox(
                                   width: double.infinity,
                                   child: Text(
-                                    item.label,
+                                    item?.label ?? '全选评论',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     textAlign: TextAlign.center,
                                     style: theme.textTheme.labelSmall,
                                   ),
                                 ),
-                                selected: mode == item,
+                                selected: item == null
+                                    ? mode == null &&
+                                          reply.replies.isNotEmpty &&
+                                          _selectedReplyIds.length ==
+                                              reply.replies.length
+                                    : mode == item,
                                 showCheckmark: false,
                                 visualDensity: VisualDensity.compact,
                                 materialTapTargetSize:
@@ -906,7 +936,9 @@ class _SavePanelState extends State<SavePanel> {
                                 ),
                                 onSelected: _isActionInProgress
                                     ? null
-                                    : (_) => _applySmartReplySelection(item),
+                                    : (_) => item == null
+                                          ? _selectAllReplies()
+                                          : _applySmartReplySelection(item),
                               ),
                             ),
                           ),
@@ -914,54 +946,6 @@ class _SavePanelState extends State<SavePanel> {
                     ],
                   ),
               ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStoryCardHeader(ThemeData theme) {
-    final mode = _smartReplyMode;
-    if (mode == null || _selectedReplyIds.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return Semantics(
-      header: true,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        color: theme.colorScheme.surfaceContainerLow,
-        child: Row(
-          children: [
-            Icon(
-              mode.icon,
-              color: theme.colorScheme.primary,
-              size: 22,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 1,
-                children: [
-                  Text('评论故事卡', style: theme.textTheme.titleSmall),
-                  Text(
-                    '${mode.label} · 原文未改写',
-                    style: TextStyle(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontSize: theme.textTheme.labelMedium!.fontSize,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              '${_selectedReplyIds.length} 条',
-              style: TextStyle(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.w600,
-              ),
             ),
           ],
         ),
@@ -1040,7 +1024,6 @@ class _SavePanelState extends State<SavePanel> {
                         mainAxisSize: .min,
                         crossAxisAlignment: .start,
                         children: [
-                          _buildStoryCardHeader(theme),
                           _isLoadingReplies
                               ? const Padding(
                                   padding: EdgeInsets.symmetric(vertical: 48),
@@ -1353,12 +1336,3 @@ class _SavePanelState extends State<SavePanel> {
 enum _CoverType { def16_9, square }
 
 enum _PicAction { save, copy }
-
-extension _SmartReplyModeUi on SmartReplyMode {
-  IconData get icon => switch (this) {
-    SmartReplyMode.highlight => Icons.auto_awesome_outlined,
-    SmartReplyMode.debate => Icons.forum_outlined,
-    SmartReplyMode.knowledge => Icons.lightbulb_outline,
-    SmartReplyMode.humor => Icons.sentiment_very_satisfied_outlined,
-  };
-}

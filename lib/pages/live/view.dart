@@ -1,3 +1,4 @@
+import 'package:PiliPlus/pages/live/bilibili/quick_actions.dart';
 import 'package:PiliPlus/common/skeleton/video_card_v.dart';
 import 'package:PiliPlus/common/sliver_single_child_delegate.dart';
 import 'package:PiliPlus/common/style.dart';
@@ -55,27 +56,41 @@ class _LivePageState extends State<LivePage>
       clipBehavior: Clip.hardEdge,
       margin: const EdgeInsets.symmetric(horizontal: Style.safeSpace),
       decoration: const BoxDecoration(borderRadius: Style.mdRadius),
-      child: refreshIndicator(
-        key: HomePreviewScope.of(context) ? null : controller.refreshKey,
-        onRefresh: controller.onRefresh,
-        child: CustomScrollView(
-          controller: controller.scrollController,
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.only(
-                top: Style.cardSpace,
-                bottom: 100,
-              ),
-              sliver: SliverMainAxisGroup(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: refreshIndicator(
+              key: HomePreviewScope.of(context) ? null : controller.refreshKey,
+              onRefresh: controller.onRefresh,
+              child: CustomScrollView(
+                controller: controller.scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
-                  Obx(() => _buildTop(theme, controller.topState.value)),
-                  Obx(() => _buildBody(theme, controller.loadingState.value)),
+                  SliverPadding(
+                    padding: const EdgeInsets.only(
+                      top: Style.cardSpace,
+                      bottom: 300,
+                    ),
+                    sliver: SliverMainAxisGroup(
+                      slivers: [
+                        Obx(() => _buildTop(theme, controller.topState.value)),
+                        Obx(
+                          () =>
+                              _buildBody(theme, controller.loadingState.value),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+          Positioned(
+            right: 8,
+            bottom: 160 + MediaQuery.viewPaddingOf(context).bottom,
+            child: const BiliLiveQuickActions(),
+          ),
+        ],
       ),
     );
   }

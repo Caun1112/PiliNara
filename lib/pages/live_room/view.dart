@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:ui';
 
+import 'package:PiliPlus/pages/live/bilibili/follow/service.dart';
 import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/button/icon_button.dart';
@@ -926,6 +927,25 @@ class _LiveRoomPageState extends State<LiveRoomPage>
               },
             ),
       actions: [
+        Obx(() {
+          final detail = _liveRoomController.roomInfoH5.value;
+          final roomId = detail?.roomInfo?.roomId ?? _liveRoomController.roomId;
+          final service = BiliFollowService.instance;
+          final followed = service.contains(roomId);
+          return IconButton(
+            tooltip: followed ? '取消本地关注' : '本地关注直播间',
+            icon: Icon(
+              followed ? Icons.favorite : Icons.favorite_border,
+              size: 22,
+            ),
+            onPressed: detail == null
+                ? null
+                : () async {
+                    final added = await service.toggle(roomId, detail);
+                    SmartDialog.showToast(added ? '已本地关注直播间' : '已取消本地关注');
+                  },
+          );
+        }),
         // IconButton(
         //   tooltip: '刷新',
         //   onPressed: _liveRoomController.queryLiveUrl,

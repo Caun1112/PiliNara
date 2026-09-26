@@ -245,7 +245,24 @@ void main() {
     expect(find.text('主评论保留 · 已选1/1条跟评'), findsOneWidget);
   });
 
-  testWidgets('智能选评会给出理由、故事卡和成图排序入口', (tester) async {
+  testWidgets('全选评论保留所有回复，允许取消后重新全选', (tester) async {
+    await _openSavePanel(tester, _smartReply());
+    expect(find.text('搞笑瞬间'), findsNothing);
+    await tester.tap(find.text('全选评论'));
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+    expect(find.text('主评论保留 · 已选5/5条跟评'), findsOneWidget);
+    expect(find.text('评论故事卡'), findsNothing);
+    await tester.tap(find.byKey(const Key('save-panel-smart-clear')));
+    await tester.pumpAndSettle();
+    expect(find.text('主评论保留 · 已选0/5条跟评'), findsOneWidget);
+    await tester.tap(find.text('全选评论'));
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+    expect(find.text('主评论保留 · 已选5/5条跟评'), findsOneWidget);
+  });
+
+  testWidgets('智能选评保留理由和排序入口，移除故事卡标题', (tester) async {
     await _openSavePanel(tester, _smartReply());
 
     expect(find.byTooltip('本地分析，不上传评论'), findsOneWidget);
@@ -275,8 +292,8 @@ void main() {
       matching: find.byType(ChoiceChip),
     );
     expect(tester.widget<ChoiceChip>(highlightChip).selected, isTrue);
-    expect(find.text('评论故事卡'), findsOneWidget);
-    expect(find.text('精彩观点 · 原文未改写'), findsOneWidget);
+    expect(find.text('评论故事卡'), findsNothing);
+    expect(find.text('精彩观点 · 原文未改写'), findsNothing);
     expect(find.text('主评论保留 · 已选4/5条跟评'), findsOneWidget);
     expect(find.textContaining('互动较高'), findsWidgets);
     expect(
@@ -349,7 +366,7 @@ void main() {
     expect(overlayRect.center.dy, greaterThan(400));
     expect(overlayRect.bottom, lessThanOrEqualTo(bottomActionsRect.top));
     expect(bottomActionsRect.top - overlayRect.bottom, lessThanOrEqualTo(16));
-    for (final label in ['精彩观点', '正反讨论', '科普补充', '搞笑瞬间']) {
+    for (final label in ['精彩观点', '正反讨论', '科普补充', '全选评论']) {
       expect(tester.getCenter(find.text(label)).dx, greaterThanOrEqualTo(160));
     }
     expect(
@@ -364,7 +381,7 @@ void main() {
 
     expect(
       find.descendant(of: capture, matching: find.text('评论故事卡')),
-      findsOneWidget,
+      findsNothing,
     );
   });
 
@@ -461,7 +478,7 @@ void main() {
       tester.widget<TextButton>(_textButtonIn(smartControls[2])).onPressed,
       isNotNull,
     );
-    for (final label in ['精彩观点', '正反讨论', '科普补充', '搞笑瞬间']) {
+    for (final label in ['精彩观点', '正反讨论', '科普补充', '全选评论']) {
       final chip = find.ancestor(
         of: find.text(label),
         matching: find.byType(ChoiceChip),
@@ -495,7 +512,7 @@ void main() {
       matching: find.byType(ChoiceChip),
     );
     expect(tester.widget<ChoiceChip>(highlightChip).selected, isTrue);
-    expect(find.text('主评论保留 · 已选2/5条跟评'), findsOneWidget);
+    expect(find.text('主评论保留 · 已选3/5条跟评'), findsOneWidget);
   });
 
   testWidgets('保存评论页仍可通过关闭按钮退出', (tester) async {

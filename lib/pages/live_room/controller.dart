@@ -1,7 +1,8 @@
-import 'dart:async' show Timer, StreamSubscription;
+import 'dart:async' show Timer, StreamSubscription, unawaited;
 import 'dart:convert' show jsonDecode;
 import 'dart:math' as math;
 
+import 'package:PiliPlus/pages/live/bilibili/follow/service.dart';
 import 'package:PiliPlus/common/widgets/dialog/report.dart';
 import 'package:PiliPlus/common/widgets/flutter/text_field/controller.dart';
 import 'package:PiliPlus/http/live.dart';
@@ -489,6 +490,7 @@ class LiveRoomController extends GetxController {
     final res = await LiveHttp.liveRoomInfoH5(roomId: roomId);
     if (res case Success(:final response)) {
       roomInfoH5.value = response;
+      unawaited(BiliFollowService.instance.updateDetail(roomId, response));
       title.value = response.roomInfo?.title ?? '';
       watchedShow.value = response.watchedShow?.textLarge;
       videoPlayerServiceHandler?.onVideoDetailChange(response, roomId, heroTag);
@@ -1014,7 +1016,8 @@ class LiveRoomController extends GetxController {
   }
 
   void _updateFansMedalHasMore(FansMedalPanelData data) {
-    final itemCount = (data.specialList?.length ?? 0) + (data.list?.length ?? 0);
+    final itemCount =
+        (data.specialList?.length ?? 0) + (data.list?.length ?? 0);
     fansMedalHasMore.value = _calcHasMore(data, itemCount);
   }
 
@@ -1086,8 +1089,8 @@ class LiveRoomController extends GetxController {
           ..hasMore = response.hasMore
           ..nextPage = response.nextPage;
         _fansMedalPage = nextPage;
-        final itemCount = (data.specialList?.length ?? 0) +
-            (data.list?.length ?? 0);
+        final itemCount =
+            (data.specialList?.length ?? 0) + (data.list?.length ?? 0);
         fansMedalHasMore.value = _calcHasMore(data, itemCount);
         fansMedalData.refresh();
       }
