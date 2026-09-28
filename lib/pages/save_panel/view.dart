@@ -121,6 +121,7 @@ class SavePanel extends StatefulWidget {
 
 class _SavePanelState extends State<SavePanel> {
   final boundaryKey = GlobalKey();
+  final _smartReplyPanelKey = GlobalKey();
   final Set<int> _selectedReplyIds = <int>{};
   final List<int> _selectedReplyOrder = <int>[];
   final Map<int, String> _selectionReasons = <int, String>{};
@@ -975,8 +976,30 @@ class _SavePanelState extends State<SavePanel> {
     super.dispose();
   }
 
+  void _onBackgroundTap(TapUpDetails details) {
+    if (_isActionInProgress || _isCapturing || _isScrolling) return;
+    // 图片内部和选评面板的留白属于内容区，不触发退出。
+    for (final key in [boundaryKey, _smartReplyPanelKey]) {
+      final box = key.currentContext?.findRenderObject();
+      if (box is RenderBox &&
+          (Offset.zero & box.size).contains(
+            box.globalToLocal(details.globalPosition),
+          )) {
+        return;
+      }
+    }
+    Navigator.of(context).pop();
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    excludeFromSemantics: true,
+    onTapUp: _onBackgroundTap,
+    child: SizedBox.expand(child: _buildContent(context)),
+  );
+
+  Widget _buildContent(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = ColorScheme.of(context);
     final padding = MediaQuery.viewPaddingOf(context);
@@ -1220,6 +1243,7 @@ class _SavePanelState extends State<SavePanel> {
         ),
         if (!_isScrolling && !_isCapturing && hasSmartReplyControls)
           Positioned(
+            key: _smartReplyPanelKey,
             right: max(8.0, padding.right),
             bottom: 80 + padding.bottom,
             width: min(360.0, maxWidth * 0.6),
@@ -1323,9 +1347,14 @@ class _SavePanelState extends State<SavePanel> {
           ),
         if (_isScrolling)
           Positioned.fill(
-            child: Listener(
-              behavior: HitTestBehavior.opaque,
-              onPointerDown: (_) => _stopActiveScroll(),
+            child: GestureDetector(
+              // 停止惯性滚动的这一击不再交给背景退出手势。
+              onTap: () {},
+              excludeFromSemantics: true,
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: (_) => _stopActiveScroll(),
+              ),
             ),
           ),
       ],

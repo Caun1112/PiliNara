@@ -147,15 +147,47 @@ void main() {
     expect(find.text('主评论保留 · 已选1/120条跟评'), findsOneWidget);
   });
 
-  testWidgets('保存评论页不能通过点击遮罩退出', (tester) async {
-    await _openSavePanel(tester, _longReply());
+  for (final size in [const Size(390, 844), const Size(1024, 768)]) {
+    testWidgets('点击图片外的空白关闭分享页 $size', (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await _openSavePanel(tester, _smartReply());
+      final capture = tester.getRect(
+        find.byKey(const Key('save-panel-capture-boundary')),
+      );
+      await tester.tapAt(Offset(capture.left - 4, size.height / 2));
+      await tester.pumpAndSettle();
+      expect(find.byType(SavePanel), findsNothing);
+      expect(find.text('打开保存评论'), findsOneWidget);
+    });
+  }
 
-    final barriers = tester
-        .widgetList<AnimatedModalBarrier>(find.byType(AnimatedModalBarrier))
-        .toList();
+  testWidgets('图片内留白和选评面板留白不会关闭分享页', (tester) async {
+    await _openSavePanel(tester, _smartReply());
+    final capture = tester.getRect(
+      find.byKey(const Key('save-panel-capture-boundary')),
+    );
+    await tester.tapAt(capture.topLeft + const Offset(2, 2));
+    await tester.pumpAndSettle();
+    expect(find.byType(SavePanel), findsOneWidget);
+    final panel = tester.getRect(
+      find.byKey(const Key('save-panel-smart-overlay')),
+    );
+    await tester.tapAt(panel.topLeft + const Offset(2, 2));
+    await tester.pumpAndSettle();
+    expect(find.byType(SavePanel), findsOneWidget);
+  });
 
-    expect(barriers, isNotEmpty);
-    expect(barriers.last.dismissible, isFalse);
+  testWidgets('点击底部工具栏外的空白关闭分享页', (tester) async {
+    await _openSavePanel(tester, _smartReply());
+    final size = tester.getSize(find.byType(SavePanel));
+    await tester.tapAt(Offset(20, size.height - 10));
+    await tester.pumpAndSettle();
+    expect(find.byType(SavePanel), findsNothing);
   });
 
   testWidgets('保存评论静止时仍可选择跟评', (tester) async {
