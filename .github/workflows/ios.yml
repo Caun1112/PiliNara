@@ -9,6 +9,15 @@ on:
         default: ""
         type: string
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (optional)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
   build-macos-app:
@@ -45,10 +54,14 @@ jobs:
           cp pubspec.lock BUILD-pubspec.lock
 
       - name: 静态分析
-        run: flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings
+        run: |
+          set -o pipefail
+          flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings 2>&1 | tee BUILD-analysis.txt
 
       - name: 回归测试
-        run: flutter test --no-pub
+        run: |
+          set -o pipefail
+          flutter test --no-pub 2>&1 | tee BUILD-tests.txt
 
       - name: Build iOS
         run: |
@@ -60,18 +73,29 @@ jobs:
           zip -qr9 PiliNara_ios_${{env.version}}_unsigned.ipa Payload/Runner.app
           unzip -t PiliNara_ios_${{env.version}}_unsigned.ipa | tail -1
           test ! -f Payload/Runner.app/embedded.mobileprovision
+          cp PiliNara_ios_${{env.version}}_unsigned.ipa PiliNara_ios_${{env.version}}_unsigned.tipa
+          cmp PiliNara_ios_${{env.version}}_unsigned.ipa PiliNara_ios_${{env.version}}_unsigned.tipa
+          unzip -t PiliNara_ios_${{env.version}}_unsigned.tipa | tail -1
           shasum -a 256 PiliNara_ios_${{env.version}}_unsigned.ipa > IPA-SHA256.txt
+          shasum -a 256 PiliNara_ios_${{env.version}}_unsigned.tipa > TIPA-SHA256.txt
           printf '%s\n' '${{ github.sha }}' > SOURCE-COMMIT.txt
 
       - name: Release
-        if: ${{ github.event.inputs.tag != '' }}
+        if: ${{ inputs.tag != '' }}
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.event.inputs.tag }}
-          name: ${{ github.event.inputs.tag }}
+          tag_name: ${{ inputs.tag }}
+          name: ${{ inputs.tag }}
           target_commitish: ${{ github.sha }}
           files: |
             PiliNara_ios_*.ipa
+            PiliNara_ios_*.tipa
+            IPA-SHA256.txt
+            TIPA-SHA256.txt
+            SOURCE-COMMIT.txt
+            BUILD-pubspec.lock
+            BUILD-analysis.txt
+            BUILD-tests.txt
 
       - name: Upload ios release
         uses: actions/upload-artifact@v7
@@ -79,6 +103,10 @@ jobs:
           name: iOS-release
           path: |
             PiliNara_ios_*.ipa
+            PiliNara_ios_*.tipa
             IPA-SHA256.txt
+            TIPA-SHA256.txt
             SOURCE-COMMIT.txt
             BUILD-pubspec.lock
+            BUILD-analysis.txt
+            BUILD-tests.txt

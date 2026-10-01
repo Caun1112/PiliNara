@@ -9,6 +9,15 @@ on:
         default: ""
         type: string
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (optional)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: write
 
 jobs:
   build-mac-app:
@@ -30,12 +39,39 @@ jobs:
         shell: pwsh
         run: lib/scripts/build.ps1
 
+      - name: 校验仓库依赖锁文件
+        run: |
+          flutter pub get --enforce-lockfile
+          git diff --exit-code -- pubspec.lock
+
       - name: Apply Patch
         shell: pwsh
         run: lib/scripts/patch.ps1 macOS
 
+      - name: 校验并记录 macOS 依赖
+        run: |
+          flutter pub get --enforce-lockfile
+          cp pubspec.lock MACOS-BUILD-pubspec.lock
+
+      - name: 静态分析
+        run: |
+          set -o pipefail
+          flutter analyze --no-pub --no-fatal-infos --no-fatal-warnings 2>&1 | tee MACOS-BUILD-analysis.txt
+
+      - name: 回归测试
+        run: |
+          set -o pipefail
+          flutter test --no-pub 2>&1 | tee MACOS-BUILD-tests.txt
+
       - name: Build Mac
         run: flutter build macos --release --dart-define-from-file=pili_release.json --no-pub
+
+      - name: Validate macOS App
+        run: |
+          app=build/macos/Build/Products/Release/PiliNara.app
+          test -x "$app/Contents/MacOS/PiliNara"
+          plutil -lint "$app/Contents/Info.plist"
+          file "$app/Contents/MacOS/PiliNara" | tee MACOS-BUILD-binary.txt
 
       - name: Archive macOS App
         run: |
@@ -50,17 +86,30 @@ jobs:
         continue-on-error: true
 
       - name: Rename DMG
-        run: mv PiliNara*.dmg PiliNara_macos_${{ env.version }}.dmg
+        run: |
+          for dmg in PiliNara*.dmg; do
+            if [ -f "$dmg" ]; then
+              mv "$dmg" PiliNara_macos_${{ env.version }}.dmg
+              break
+            fi
+          done
 
       - name: Release
-        if: ${{ github.event.inputs.tag != '' }}
+        if: ${{ inputs.tag != '' }}
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.event.inputs.tag }}
-          name: ${{ github.event.inputs.tag }}
+          tag_name: ${{ inputs.tag }}
+          name: ${{ inputs.tag }}
           target_commitish: ${{ github.sha }}
           files: |
             PiliNara_macos_*.dmg
+            PiliNara_macos_*.app.zip
+            MACOS-SHA256.txt
+            SOURCE-COMMIT.txt
+            MACOS-BUILD-pubspec.lock
+            MACOS-BUILD-analysis.txt
+            MACOS-BUILD-tests.txt
+            MACOS-BUILD-binary.txt
 
       - name: Upload macos release
         uses: actions/upload-artifact@v7
@@ -71,3 +120,7 @@ jobs:
             PiliNara_macos_*.app.zip
             MACOS-SHA256.txt
             SOURCE-COMMIT.txt
+            MACOS-BUILD-pubspec.lock
+            MACOS-BUILD-analysis.txt
+            MACOS-BUILD-tests.txt
+            MACOS-BUILD-binary.txt

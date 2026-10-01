@@ -645,7 +645,7 @@ class _SavePanelState extends State<SavePanel> {
         image.dispose();
       }
       final picName =
-          "${Constants.appName}_${itemType}_${DateFormat('yyyyMMddHHmmss').format(DateTime.now())}";
+          "${Constants.appName}_${itemType}_${DateFormatUtils.only0_9.format(DateTime.now())}";
       switch (action) {
         case _PicAction.copy:
           await FlutterClipboard.copyImage(pngBytes);
