@@ -136,6 +136,12 @@ class VideoDetailController extends GetxController
   // 小窗流程依赖页面的路由生命周期（pop 收起），controller 自身无法发起
   VoidCallback? onRequestInAppPip;
 
+  // 当前挂着本 controller 一组 GlobalKey（videoPlayerKey/childKey/scrollKey/
+  // listKey/headerCtrKey）的视频页 State。同一 controller 被两个驻栈页面共用时
+  // （同视频复用、fromPip 展开），非 owner 页不挂这些 key，避免离屏旧页重建时
+  // 把 element 抢回去。页面在 initState/didPopNext 认领，dispose 时若仍持有则释放
+  Object? pageOwner;
+
   /// 视频页能否被 pop：页面 popScope 的 canPop 与三点菜单小窗入口共用。
   /// 横屏模式下竖屏才可 pop（横屏由播放器自己接管返回）
   bool canPopPage({required bool isPortrait}) =>
