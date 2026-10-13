@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/common/style.dart';
@@ -524,11 +526,21 @@ class _UgcIntroPanelState extends State<UgcIntroPanel> {
             text: '下载',
           ),
           ActionItem(
-            icon: const Icon(FontAwesomeIcons.shareFromSquare),
-            onTap: () => introController.actionShareVideo(context),
+            icon: Icon(
+              Platform.isIOS
+                  ? FontAwesomeIcons.bilibili
+                  : FontAwesomeIcons.shareFromSquare,
+            ),
+            onTap: Platform.isIOS
+                ? introController.openInBilibili
+                : () => introController.actionShareVideo(context),
             selectStatus: false,
-            semanticsLabel: '分享',
-            text: !isLoading ? NumUtils.numFormat(stat!.share!) : null,
+            semanticsLabel: Platform.isIOS ? '从B站打开此视频' : '分享',
+            text: Platform.isIOS
+                ? 'B站打开'
+                : !isLoading
+                ? NumUtils.numFormat(stat!.share!)
+                : null,
           ),
           if (Pref.enableAiChat)
             ActionItem(

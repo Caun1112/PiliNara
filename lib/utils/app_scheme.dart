@@ -110,6 +110,7 @@ abstract final class PiliScheme {
     final String path = uri.path;
 
     switch (scheme) {
+      case 'pilinara':
       case 'bilibili':
         switch (host) {
           case 'root':

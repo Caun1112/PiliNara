@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:math';
 
 import 'package:PiliPlus/common/style.dart';
@@ -440,11 +441,17 @@ class _PgcIntroPageState extends State<PgcIntroPage> {
             text: '',
           ),
           ActionItem(
-            icon: const Icon(FontAwesomeIcons.shareFromSquare),
-            onTap: () => introController.actionShareVideo(context),
+            icon: Icon(
+              Platform.isIOS
+                  ? FontAwesomeIcons.bilibili
+                  : FontAwesomeIcons.shareFromSquare,
+            ),
+            onTap: Platform.isIOS
+                ? introController.openInBilibili
+                : () => introController.actionShareVideo(context),
             selectStatus: false,
-            semanticsLabel: '转发',
-            text: NumUtils.numFormat(stat.share),
+            semanticsLabel: Platform.isIOS ? '从B站打开此视频' : '转发',
+            text: Platform.isIOS ? 'B站打开' : NumUtils.numFormat(stat.share),
           ),
         ],
       ),

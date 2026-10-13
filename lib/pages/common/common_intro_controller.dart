@@ -12,6 +12,7 @@ import 'package:PiliPlus/models_new/video/video_tag/data.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/widgets/triple_mixin.dart';
 import 'package:PiliPlus/utils/accounts.dart';
+import 'package:PiliPlus/utils/bilibili_video_link.dart';
 import 'package:PiliPlus/utils/global_data.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
@@ -61,6 +62,41 @@ abstract class CommonIntroController extends GetxController
   bool nextPlay({bool manual = false});
 
   void actionShareVideo(BuildContext context);
+
+  BilibiliVideoLink? get bilibiliVideoLink {
+    final currentCid = videoDetailCtr.cid.value;
+    final currentPart = videoDetail.value.pages?.firstWhereOrNull(
+      (part) => part.cid == currentCid,
+    );
+    // Never silently open P1 while metadata for a directly linked part loads.
+    if (currentCid > 0 && (currentPart?.page ?? 0) <= 0) return null;
+    // Use the API's original page number, even when the part list is reversed.
+    return BilibiliVideoLink.video(
+      aid: videoDetailCtr.aid,
+      page: currentPart?.page ?? 1,
+    );
+  }
+
+  bool _openingBilibili = false;
+
+  Future<void> openInBilibili() async {
+    if (_openingBilibili) return;
+    _openingBilibili = true;
+    try {
+      final link = bilibiliVideoLink;
+      if (link == null) {
+        SmartDialog.showToast('暂时无法确定当前分P，请稍后重试');
+        return;
+      }
+      if (await link.open()) {
+        await videoDetailCtr.plPlayerController.pause();
+      } else {
+        SmartDialog.showToast('无法打开哔哩哔哩，请确认已安装官方 App');
+      }
+    } finally {
+      _openingBilibili = false;
+    }
+  }
 
   // 同时观看
   final bool isShowOnlineTotal = Pref.enableOnlineTotal;

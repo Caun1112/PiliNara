@@ -2240,12 +2240,16 @@ class HeaderControlState extends State<HeaderControl>
                   height: btnHeight,
                   child: ActionItem(
                     expand: false,
-                    icon: const Icon(
-                      FontAwesomeIcons.shareFromSquare,
+                    icon: Icon(
+                      Platform.isIOS
+                          ? FontAwesomeIcons.bilibili
+                          : FontAwesomeIcons.shareFromSquare,
                       color: Colors.white,
                     ),
-                    onTap: () => introController.actionShareVideo(context),
-                    semanticsLabel: '分享',
+                    onTap: Platform.isIOS
+                        ? introController.openInBilibili
+                        : () => introController.actionShareVideo(context),
+                    semanticsLabel: Platform.isIOS ? '从B站打开此视频' : '分享',
                   ),
                 ),
               ],
