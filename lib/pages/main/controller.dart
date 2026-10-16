@@ -63,10 +63,6 @@ class MainController extends GetxController
   late final optTabletNav = Pref.optTabletNav;
 
   late bool directExitOnBack = Pref.directExitOnBack;
-  late bool showTrayIcon = Pref.showTrayIcon;
-  late bool minimizeOnExit = Pref.minimizeOnExit;
-  late bool pauseOnMinimize = Pref.pauseOnMinimize;
-  late bool isPlaying = false;
 
   static const _period = 5 * 60 * 1000;
   static const _fixedNavigationBars = [
