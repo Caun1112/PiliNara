@@ -26,6 +26,9 @@ class BiliDownloadEntryInfo with MultiSelectData {
   final String cover;
   int? videoQuality;
   int preferedVideoQuality;
+
+  /// When set, retries must use this exact quality instead of a fallback.
+  int? requiredVideoQuality;
   String qualityPithyDescription;
   final int guessedTotalBytes;
   int totalTimeMilli;
@@ -170,6 +173,7 @@ class BiliDownloadEntryInfo with MultiSelectData {
     required this.cover,
     this.videoQuality,
     required this.preferedVideoQuality,
+    this.requiredVideoQuality,
     this.qualityPithyDescription = '',
     required this.guessedTotalBytes,
     required this.totalTimeMilli,
@@ -206,6 +210,7 @@ class BiliDownloadEntryInfo with MultiSelectData {
         cover: json['cover'] as String,
         videoQuality: json['video_quality'] as int?,
         preferedVideoQuality: json['prefered_video_quality'] as int,
+        requiredVideoQuality: json['required_video_quality'] as int?,
         qualityPithyDescription: json['quality_pithy_description'] as String,
         guessedTotalBytes: json['guessed_total_bytes'] as int,
         totalTimeMilli: json['total_time_milli'] as int,
@@ -250,6 +255,7 @@ class BiliDownloadEntryInfo with MultiSelectData {
     'cover': cover,
     'video_quality': ?videoQuality,
     'prefered_video_quality': preferedVideoQuality,
+    'required_video_quality': ?requiredVideoQuality,
     'quality_pithy_description': qualityPithyDescription,
     'guessed_total_bytes': guessedTotalBytes,
     'total_time_milli': totalTimeMilli,
@@ -518,4 +524,9 @@ enum DownloadStatus {
   const DownloadStatus(this.message);
 
   bool get isDownloading => index <= 3;
+
+  bool get isFailure => switch (this) {
+    failDownload || failDownloadAudio || failDanmaku || failPlayUrl => true,
+    _ => false,
+  };
 }

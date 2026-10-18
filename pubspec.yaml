@@ -277,6 +277,9 @@ flutter_native_splash:
 flutter:
   uses-material-design: true
 
+  shaders:
+    - packages/material_ui/shaders/ink_sparkle.frag
+
   assets:
     - path: assets/images/
     - path: assets/images/logo/

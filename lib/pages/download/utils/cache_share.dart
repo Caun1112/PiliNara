@@ -18,20 +18,35 @@ abstract final class CacheShare {
   static const _progressTagPrefix = 'cache-share-progress-';
   static final Map<int, ValueChanged<BiliDownloadEntryInfo>>
   _pendingShareCallbacks = {};
+  static final Map<int, ValueChanged<BiliDownloadEntryInfo>>
+  _pendingFailureCallbacks = {};
+  static final Map<int, int> _requiredQualities = {};
   static final Set<int> _cancellingCids = {};
+  static final Set<int> _exportingCids = {};
 
   static Future<void> shareAfterDownload(
     DownloadService downloadService,
-    int cid,
-  ) async {
+    int cid, {
+    int? requiredQuality,
+  }) async {
     await downloadService.waitForInitialization;
     for (final entry in downloadService.downloadList) {
       if (entry.cid == cid) {
+        if (requiredQuality != null && entry.videoQuality != requiredQuality) {
+          SmartDialog.showToast('已有缓存不是指定的480P，未自动分享');
+          return;
+        }
         await shareEntry(entry);
         return;
       }
     }
 
+    final current = downloadService.curDownload.value;
+    if (current?.cid == cid && current!.status.isFailure) {
+      SmartDialog.showToast('${current.status.message}，请在下载页重试');
+      return;
+    }
+    if (requiredQuality != null) _requiredQualities[cid] = requiredQuality;
     _showDownloadProgress(downloadService, cid);
     if (_pendingShareCallbacks.containsKey(cid)) {
       return;
@@ -42,12 +57,33 @@ abstract final class CacheShare {
       if (entry.cid != cid) {
         return;
       }
-      downloadService.completedEntryNotifier.remove(callback);
-      _pendingShareCallbacks.remove(cid);
+      final required = _requiredQualities[cid];
+      _clearPending(downloadService, cid);
+      if (required != null && entry.videoQuality != required) {
+        SmartDialog.dismiss(tag: _progressTag(cid));
+        SmartDialog.showToast('下载画质与指定的480P不符，未自动分享');
+        return;
+      }
       _shareCompletedEntry(entry);
     };
     _pendingShareCallbacks[cid] = callback;
     downloadService.completedEntryNotifier.add(callback);
+    final ValueChanged<BiliDownloadEntryInfo> failed = (entry) {
+      if (entry.cid != cid) return;
+      _clearPending(downloadService, cid);
+      SmartDialog.dismiss(tag: _progressTag(cid));
+      SmartDialog.showToast('${entry.status.message}，请在下载页重试');
+    };
+    _pendingFailureCallbacks[cid] = failed;
+    downloadService.failedEntryNotifier.add(failed);
+  }
+
+  static void _clearPending(DownloadService service, int cid) {
+    final completed = _pendingShareCallbacks.remove(cid);
+    final failed = _pendingFailureCallbacks.remove(cid);
+    if (completed != null) service.completedEntryNotifier.remove(completed);
+    if (failed != null) service.failedEntryNotifier.remove(failed);
+    _requiredQualities.remove(cid);
   }
 
   static String _progressTag(int cid) => '$_progressTagPrefix$cid';
@@ -88,10 +124,7 @@ abstract final class CacheShare {
       return;
     }
     try {
-      final callback = _pendingShareCallbacks.remove(cid);
-      if (callback != null) {
-        downloadService.completedEntryNotifier.remove(callback);
-      }
+      _clearPending(downloadService, cid);
 
       BiliDownloadEntryInfo? entry;
       final current = downloadService.curDownload.value;
@@ -121,6 +154,7 @@ abstract final class CacheShare {
 
   /// 用 FFmpeg 合并缓存的音视频流后调起系统分享面板
   static Future<void> shareEntry(BiliDownloadEntryInfo entry) async {
+    if (!_exportingCids.add(entry.cid)) return;
     try {
       SmartDialog.showLoading(msg: '正在导出视频');
 
@@ -138,7 +172,9 @@ abstract final class CacheShare {
       final audioFile = File(path.join(videoDir, PathUtils.audioNameType2));
       final hasAudio = !isMp4 && entry.hasDashAudio && audioFile.existsSync();
 
-      final workDir = Directory(path.join(tmpDirPath, 'cache_share'));
+      final workDir = Directory(
+        path.join(tmpDirPath, 'cache_share', '${entry.cid}'),
+      );
       if (!workDir.existsSync()) workDir.createSync(recursive: true);
       final mergedPath = path.join(workDir.path, 'merged_output.mp4');
       final fixedPath = path.join(workDir.path, 'fixed.mp4');
@@ -180,6 +216,8 @@ abstract final class CacheShare {
     } catch (e) {
       SmartDialog.dismiss();
       SmartDialog.showToast('分享导出失败: $e');
+    } finally {
+      _exportingCids.remove(entry.cid);
     }
   }
 

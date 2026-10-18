@@ -2,6 +2,7 @@ import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models/common/account_type.dart';
 import 'package:PiliPlus/models/common/video/audio_quality.dart';
+import 'package:PiliPlus/models/common/video/video_decode_type.dart';
 import 'package:PiliPlus/models/common/video/video_quality.dart';
 import 'package:PiliPlus/models/common/video/video_type.dart';
 import 'package:PiliPlus/models/video/play/url.dart';
@@ -18,6 +19,63 @@ abstract final class DownloadHttp {
   static const String referer = "https://www.bilibili.com/";
   static const String userAgent = "Bilibili Freedoooooom/MarkII";
 
+  /// Validates actual streams, rather than advertised formats or quality names.
+  /// An exact requirement must survive account changes and URL refreshes.
+  static int selectVideoQuality(
+    PlayUrlModel response, {
+    required int preferredQuality,
+    int? requiredQuality,
+  }) {
+    if (requiredQuality != null) {
+      // The current downloader consumes only the first durl segment. Never
+      // export a partial video as a completed exact-quality download.
+      if (response.dash == null && (response.durl?.length ?? 0) > 1) {
+        throw StateError('当前480P资源包含多个视频分段，暂不支持自动下载分享');
+      }
+      final available = response.dash != null
+          ? response.dash!.video?.any(
+                  (video) => video.quality.code == requiredQuality,
+                ) ==
+                true
+          : response.quality == requiredQuality &&
+                response.durl?.isNotEmpty == true;
+      if (!available) {
+        throw DownloadQualityUnavailableException(requiredQuality);
+      }
+      return requiredQuality;
+    }
+    if (response.dash != null) {
+      return response.findAvailableVideoQuality(preferredQuality);
+    }
+    return response.supportFormats
+            ?.firstWhereOrNull((format) => format.quality == response.quality)
+            ?.quality ??
+        VideoQuality.clear480.code;
+  }
+
+  /// Exact downloads choose a codec from returned tracks even when optional
+  /// support_formats metadata is absent, empty, or out of date.
+  static VideoItem selectExactDashVideo(
+    PlayUrlModel response, {
+    required int quality,
+    required List<VideoDecodeFormatType> preferredCodecs,
+  }) {
+    final videos = response.dash?.video
+        ?.where((video) => video.quality.code == quality)
+        .toList();
+    if (videos == null || videos.isEmpty) {
+      throw DownloadQualityUnavailableException(quality);
+    }
+    for (final codec in preferredCodecs) {
+      final video = videos.firstWhereOrNull(
+        (video) =>
+            video.codecs != null && codec.codes.any(video.codecs!.startsWith),
+      );
+      if (video != null) return video;
+    }
+    return videos.first;
+  }
+
   static Future<DownloadVideoUrlResult> getVideoUrl({
     required BiliDownloadEntryInfo entry,
     SourceInfo? source,
@@ -31,7 +89,7 @@ abstract final class DownloadHttp {
       cid: entry.cid,
       seasonId: entry.seasonId,
       epid: ep?.episodeId,
-      qn: entry.preferedVideoQuality,
+      qn: entry.requiredVideoQuality ?? entry.preferedVideoQuality,
       tryLook: !isLogin && Pref.p1080,
       videoType: switch (ep?.from) {
         'pugv' => VideoType.pugv,
@@ -41,46 +99,55 @@ abstract final class DownloadHttp {
     );
     if (res case Success(:final response)) {
       final dash = response.dash;
+      // Validate before mutating the entry, including its segment metadata.
+      final targetVideoQa = selectVideoQuality(
+        response,
+        preferredQuality: entry.preferedVideoQuality,
+        requiredQuality: entry.requiredVideoQuality,
+      );
 
       // segments
       entry.segments = response.clipInfoList;
 
       if (dash != null) {
-        final targetVideoQa = response.findAvailableVideoQuality(
-          entry.preferedVideoQuality,
-        );
-
         /// 优先顺序 设置中指定解码格式 -> 当前可选的首个解码格式
-        final supportFormats = response.supportFormats!;
-        // 根据画质选编码格式
-        final targetSupportFormats = supportFormats.firstWhere(
-          (e) => e.quality == targetVideoQa,
-          orElse: () => supportFormats.first,
-        );
-
-        final currentDecodeFormats = VideoUtils.selectCodec(
-          targetSupportFormats.codecs!,
-          Pref.preferCodecs,
-        );
+        final FormatItem? targetSupportFormats;
+        final VideoItem videoDash;
+        if (entry.requiredVideoQuality != null) {
+          targetSupportFormats = response.supportFormats?.firstWhereOrNull(
+            (format) => format.quality == targetVideoQa,
+          );
+          videoDash = selectExactDashVideo(
+            response,
+            quality: targetVideoQa,
+            preferredCodecs: Pref.preferCodecs,
+          );
+        } else {
+          final supportFormats = response.supportFormats!;
+          targetSupportFormats = supportFormats.firstWhere(
+            (e) => e.quality == targetVideoQa,
+            orElse: () => supportFormats.first,
+          );
+          final currentDecodeFormats = VideoUtils.selectCodec(
+            targetSupportFormats.codecs!,
+            Pref.preferCodecs,
+          );
+          final videosList = dash.video!
+              .where((e) => e.quality.code == targetVideoQa)
+              .toList();
+          videoDash = videosList.firstWhere(
+            (e) => currentDecodeFormats.codes.any(e.codecs!.startsWith),
+            orElse: () => videosList.first,
+          );
+        }
 
         entry
           ..typeTag = targetVideoQa.toString()
           ..videoQuality = targetVideoQa
           ..preferedVideoQuality = targetVideoQa
           ..qualityPithyDescription =
-              targetSupportFormats.newDesc ??
+              targetSupportFormats?.newDesc ??
               VideoQuality.fromCode(targetVideoQa).desc;
-
-        /// 取出符合当前画质的videoList
-        final videosList = dash.video!
-            .where((e) => e.quality.code == targetVideoQa)
-            .toList();
-
-        /// 取出符合当前解码格式的videoItem
-        final videoDash = videosList.firstWhere(
-          (e) => currentDecodeFormats.codes.any(e.codecs!.startsWith),
-          orElse: () => videosList.first,
-        );
 
         final videoUrl = VideoUtils.getCdnUrl(videoDash.playUrls);
 
@@ -163,9 +230,10 @@ abstract final class DownloadHttp {
         final FormatItem? formatItem = response.supportFormats
             ?.firstWhereOrNull((e) => e.quality == response.quality);
         final String description =
-            formatItem?.newDesc ?? VideoQuality.clear480.desc;
-        final int targetVideoQa =
-            formatItem?.quality ?? VideoQuality.clear480.code;
+            formatItem?.newDesc ??
+            (entry.requiredVideoQuality != null
+                ? VideoQuality.fromCode(targetVideoQa).desc
+                : VideoQuality.clear480.desc);
 
         entry
           ..mediaType = 1
@@ -215,6 +283,20 @@ abstract final class DownloadHttp {
     } else {
       throw res.toString();
     }
+  }
+}
+
+class DownloadQualityUnavailableException implements Exception {
+  const DownloadQualityUnavailableException(this.quality);
+
+  final int quality;
+
+  @override
+  String toString() {
+    final description = VideoQuality.values
+        .firstWhereOrNull((value) => value.code == quality)
+        ?.shortDesc;
+    return '当前视频或当前播放账号未提供 ${description ?? '画质 $quality'}，未开始下载';
   }
 }
 

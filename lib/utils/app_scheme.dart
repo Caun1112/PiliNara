@@ -1,6 +1,6 @@
 // ignore_for_file: constant_identifier_names
 
-import 'dart:async' show StreamSubscription;
+import 'dart:async' show StreamSubscription, unawaited;
 
 import 'package:PiliPlus/common/widgets/scaffold/simple_scaffold.dart';
 import 'package:PiliPlus/common/widgets/view_safe_area.dart';
@@ -18,7 +18,9 @@ import 'package:PiliPlus/pages/live/platform_view.dart';
 import 'package:PiliPlus/pages/rank/view.dart';
 import 'package:PiliPlus/pages/subscription_detail/view.dart';
 import 'package:PiliPlus/pages/video/reply_reply/view.dart';
+import 'package:PiliPlus/services/download/external_video_download.dart';
 import 'package:PiliPlus/utils/desktop/window_controller.dart';
+import 'package:PiliPlus/utils/external_download_request.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/page_utils.dart';
 import 'package:PiliPlus/utils/parse_string.dart';
@@ -148,6 +150,16 @@ abstract final class PiliScheme {
             // bilibili://video/12345678?dm_progress=123000&cid=12345678&dmid=12345678
             // bilibili://video/{aid}/?comment_root_id=***&comment_secondary_id=***
             final queryParameters = uri.queryParameters;
+            if (scheme == 'pilinara' &&
+                queryParameters['action'] == 'download') {
+              final request = ExternalDownloadRequest.tryParse(uri);
+              if (request == null) {
+                SmartDialog.showToast('下载链接无效，未开始下载');
+              } else {
+                unawaited(externalVideoDownload.open(request));
+              }
+              return true;
+            }
             if (queryParameters['comment_root_id'] != null) {
               // to video reply
               String? oid = uriDigitRegExp.firstMatch(path)?.group(1);

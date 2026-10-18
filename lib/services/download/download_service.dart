@@ -49,6 +49,8 @@ class DownloadService extends GetxService {
 
   final flagNotifier = SetNotifier();
   final completedEntryNotifier = Set<ValueChanged<BiliDownloadEntryInfo>>();
+  final failedEntryNotifier = Set<ValueChanged<BiliDownloadEntryInfo>>();
+  final _creatingDownloads = <int, Future<BiliDownloadEntryInfo?>>{};
   final waitDownloadQueue = RxList<BiliDownloadEntryInfo>();
   final downloadList = <BiliDownloadEntryInfo>[];
 
@@ -60,6 +62,7 @@ class DownloadService extends GetxService {
       curDownload
         ..value!.status = status
         ..refresh();
+      if (status.isFailure) failedEntryNotifier.notify(curDownload.value!);
     }
   }
 
@@ -121,24 +124,24 @@ class DownloadService extends GetxService {
     return result;
   }
 
-  void downloadVideo({
+  Future<BiliDownloadEntryInfo?> downloadVideo({
     required int index,
     required Part page,
     VideoDetailData? videoDetail,
     ugc.EpisodeItem? videoArc,
     required VideoQuality videoQuality,
+    int? requiredVideoQuality,
     String? autoFolderTitle,
     String? autoFolderSourceKey,
     int? autoFolderIndex,
     SeasonInfo? seasonInfo,
   }) {
     final cid = page.cid!;
-    if (downloadList.indexWhere((e) => e.cid == cid) != -1) {
-      return;
+    for (final entry in downloadList.followedBy(waitDownloadQueue)) {
+      if (entry.cid == cid) return Future.value(entry);
     }
-    if (waitDownloadQueue.indexWhere((e) => e.cid == cid) != -1) {
-      return;
-    }
+    final creating = _creatingDownloads[cid];
+    if (creating != null) return creating;
     final pageData = PageInfo(
       cid: cid,
       page: page.page!,
@@ -164,6 +167,7 @@ class DownloadService extends GetxService {
       typeTag: videoQuality.code.toString(),
       cover: (videoDetail?.pic ?? videoArc!.cover!).http2https,
       preferedVideoQuality: videoQuality.code,
+      requiredVideoQuality: requiredVideoQuality,
       qualityPithyDescription: videoQuality.desc,
       guessedTotalBytes: 0,
       totalTimeMilli: (page.duration ?? 0) * 1000,
@@ -187,7 +191,27 @@ class DownloadService extends GetxService {
       autoFolderIndex: autoFolderIndex,
       seasonInfo: seasonInfo,
     );
-    _createDownload(entry);
+    final task = _createDownload(entry)
+        .then<BiliDownloadEntryInfo?>((_) => entry);
+    _creatingDownloads[cid] = task;
+    return task.whenComplete(() {
+      _creatingDownloads.remove(cid);
+    });
+  }
+
+  /// Preserve an exact requirement when reusing a waiting or active task.
+  Future<void> requireVideoQuality(
+    BiliDownloadEntryInfo entry,
+    int quality,
+  ) async {
+    final actual = entry.videoQuality;
+    if ((entry.isCompleted && actual != quality) ||
+        (actual != null && actual != quality) ||
+        entry.preferedVideoQuality != quality) {
+      throw StateError('已有缓存或任务不是指定的480P，请在下载页处理后重试');
+    }
+    entry.requiredVideoQuality = quality;
+    await _updateBiliDownloadEntryJson(entry);
   }
 
   void downloadBangumi({
@@ -1033,7 +1057,7 @@ extension SetNotifierExt on SetNotifier {
 
 extension EntryNotifierExt on Set<ValueChanged<BiliDownloadEntryInfo>> {
   void notify(BiliDownloadEntryInfo entry) {
-    for (final i in this) {
+    for (final i in toList()) {
       i(entry);
     }
   }
