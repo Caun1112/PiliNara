@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:PiliPlus/common/assets.dart';
 import 'package:PiliPlus/common/style.dart';
 import 'package:PiliPlus/common/widgets/badge.dart';
+import 'package:PiliPlus/common/widgets/button/icon_button.dart';
 import 'package:PiliPlus/common/widgets/dialog/dialog.dart';
 import 'package:PiliPlus/common/widgets/flutter/popup_menu.dart';
 import 'package:PiliPlus/common/widgets/image/network_img_layer.dart';
@@ -10,24 +11,22 @@ import 'package:PiliPlus/common/widgets/stat/stat.dart';
 import 'package:PiliPlus/http/init.dart';
 import 'package:PiliPlus/models/common/badge_type.dart';
 import 'package:PiliPlus/models/common/stat_type.dart';
-import 'package:PiliPlus/models/common/video/audio_quality.dart';
-import 'package:PiliPlus/models/common/video/video_quality.dart';
+import 'package:PiliPlus/models/common/video/base_quality.dart';
 import 'package:PiliPlus/models/video/play/url.dart';
+import 'package:PiliPlus/models_new/download/bili_download_entry_info.dart';
 import 'package:PiliPlus/models_new/pgc/pgc_info_model/episode.dart' as pgc;
 import 'package:PiliPlus/models_new/pgc/pgc_info_model/result.dart';
 import 'package:PiliPlus/models_new/video/video_detail/data.dart';
 import 'package:PiliPlus/models_new/video/video_detail/episode.dart' as ugc;
 import 'package:PiliPlus/models_new/video/video_detail/page.dart';
-import 'package:PiliPlus/pages/download/view.dart';
+import 'package:PiliPlus/pages/download/download/view.dart';
 import 'package:PiliPlus/pages/download/utils/cache_share.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/widgets/page.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
-import 'package:PiliPlus/utils/accounts.dart';
 import 'package:PiliPlus/utils/date_utils.dart';
 import 'package:PiliPlus/utils/duration_utils.dart';
-import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/extension/num_ext.dart';
 import 'package:PiliPlus/utils/id_utils.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
@@ -37,7 +36,7 @@ import 'package:PiliPlus/utils/video_utils.dart';
 import 'package:collection/collection.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, kReleaseMode;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
@@ -104,33 +103,35 @@ class _DownloadPanelState extends State<DownloadPanel> {
 
   late final cidSet = widget.cidSet;
   VideoQuality _quality = VideoQuality.fromCode(Pref.defaultDownloadVideoQa);
+  AudioQuality _audioQuality = AudioQuality.fromCode(Pref.defaultAudioQa);
   List<_DownloadQualityOption> _qualityOptions = const [];
   final Map<int, int> _resolvedSizes = {};
   int? _selectingQualityCode;
 
-  ({String title, String sourceKey})? get _autoFolderInfo {
-    final ugcSeason = widget.videoDetail?.ugcSeason;
-    final title = ugcSeason?.title?.trim();
-    final seasonId = ugcSeason?.id;
-    if (title == null || title.isEmpty || seasonId == null) {
-      return null;
-    }
-    return (
-      title: title,
-      sourceKey: 'ugc-season:$seasonId',
-    );
+  late ColorScheme colorScheme;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    colorScheme = .of(context);
   }
 
-  /// 该条目在 `episodes`（ugcSeason 各 section 拉平）中的位置，即合集里的原顺序。
-  /// 只有合集成员才记序号：成员是 ugc.EpisodeItem；「有 ugcSeason 但 sections
-  /// 为空、episodes 退化成单视频分P列表」时拿到的是 Part，此时返回 null。
-  int? _seasonIndex(ugc.BaseEpisodeItem episode, ugc.EpisodeItem? parent) {
+  /// 该条目所属的 UGC 合集，序号取它在 `episodes`（ugcSeason 各 section
+  /// 拉平）中的位置，也就是合集里的原顺序。
+  ///
+  /// 只有合集成员才算：成员是 [ugc.EpisodeItem]；「有 ugcSeason 但 sections
+  /// 为空、episodes 退化成单视频分P列表」时拿到的是 [Part]，此时不属于任何
+  /// 合集，这些分P 仍按 avid 归成同一页。
+  SeasonInfo? _seasonInfo(
+    ugc.BaseEpisodeItem episode,
+    ugc.EpisodeItem? parent,
+  ) {
     final item = parent ?? episode;
     if (item is! ugc.EpisodeItem) {
       return null;
     }
     final index = widget.episodes.indexOf(item);
-    return index < 0 ? null : index;
+    return index < 0 ? null : widget.videoDetail?.seasonInfo(index);
   }
 
   @override
@@ -167,8 +168,8 @@ class _DownloadPanelState extends State<DownloadPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        _buildHeader(theme),
-        _buildBody(theme),
+        _buildHeader(),
+        _buildBody(),
         Divider(height: 1, color: dividerColor),
         _buildFooter(theme, dividerColor),
       ],
@@ -196,7 +197,9 @@ class _DownloadPanelState extends State<DownloadPanel> {
                 ? VideoUtils.selectCodec(codecs!, Pref.preferCodecs).codes
                 : const <String>[];
             final video = videos.firstWhere(
-              (video) => preferredCodecs.any(video.codecs!.startsWith),
+              (video) =>
+                  video.codecs != null &&
+                  preferredCodecs.any(video.codecs!.startsWith),
               orElse: () => videos.first,
             );
             return (
@@ -233,20 +236,7 @@ class _DownloadPanelState extends State<DownloadPanel> {
     if (audioList == null || audioList.isEmpty) {
       return null;
     }
-    final preferAudioQa = Pref.defaultAudioQa;
-    final audioIds = audioList.map((audio) => audio.id).toList();
-    int closestNumber = audioIds.findClosestTarget(
-      (id) => id <= preferAudioQa,
-      (a, b) => a > b ? a : b,
-    );
-    if (!audioIds.contains(preferAudioQa) &&
-        audioIds.any((id) => id > preferAudioQa)) {
-      closestNumber = AudioQuality.k192.code;
-    }
-    return audioList.firstWhere(
-      (audio) => audio.id == closestNumber,
-      orElse: () => audioList.first,
-    );
+    return VideoUtils.findTargetAudio(audioList, _audioQuality.code);
   }
 
   Future<void> _resolveQualitySizes() async {
@@ -272,10 +262,7 @@ class _DownloadPanelState extends State<DownloadPanel> {
     await Future.wait(futures);
   }
 
-  Future<int?> _resolveMediaSize(
-    BaseItem item, {
-    bool isAudio = false,
-  }) async {
+  Future<int?> _resolveMediaSize(BaseItem item, {bool isAudio = false}) async {
     final cancelToken = CancelToken();
     try {
       final response = await Request.http11Dio.get<ResponseBody>(
@@ -404,7 +391,7 @@ class _DownloadPanelState extends State<DownloadPanel> {
       await Pref.setDefaultDownloadVideoQa(quality.code);
       _quality = quality;
       final currentCid =
-          widget.videoDetailController.seasonCid ??
+          widget.ugcIntroController?.seasonCid ??
           widget.videoDetailController.cid.value;
       final removed = await _downloadService.removeDownloadForQualityChange(
         cid: currentCid,
@@ -440,35 +427,112 @@ class _DownloadPanelState extends State<DownloadPanel> {
     return _onDownload(index: widget.index, episode: episode);
   }
 
-  Widget _buildHeader(ThemeData theme) {
-    final textStyle = TextStyle(color: theme.colorScheme.onSurfaceVariant);
+  Widget _buildHeader() {
+    final textStyle = TextStyle(color: colorScheme.onSurfaceVariant);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 0, 12),
       child: Row(
-        spacing: 16,
         children: [
+          Text('目标画质', style: textStyle),
+          Builder(
+            builder: (context) => StaticPopupMenuButton<VideoQuality>(
+              initialValue: _quality,
+              onSelected: (value) {
+                _quality = value;
+                (context as Element).markNeedsBuild();
+              },
+              itemBuilder: (context) => VideoQuality.values
+                  .map((e) => PopupMenuItem(value: e, child: Text(e.desc)))
+                  .toList(),
+              child: _buildPopupMenuChild(_quality.desc),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Text('目标音质', style: textStyle),
+          Builder(
+            builder: (context) => StaticPopupMenuButton<AudioQuality>(
+              initialValue: _audioQuality,
+              onSelected: (value) {
+                _audioQuality = value;
+                (context as Element).markNeedsBuild();
+              },
+              itemBuilder: (context) => AudioQuality.values
+                  .map((e) => PopupMenuItem(value: e, child: Text(e.desc)))
+                  .toList(),
+              child: _buildPopupMenuChild(_audioQuality.desc),
+            ),
+          ),
+          Builder(
+            builder: (context) => iconButton(
+              size: 34,
+              iconSize: 20,
+              tooltip: '缓存字幕/分段',
+              onPressed: () {
+                _downloadService.toggleCachePlayInfo();
+                (context as Element).markNeedsBuild();
+              },
+              icon: Icon(
+                _downloadService.cachePlayInfo
+                    ? Icons.subtitles_outlined
+                    : Icons.subtitles_off_outlined,
+                color: _downloadService.cachePlayInfo
+                    ? colorScheme.onSurfaceVariant
+                    : colorScheme.outline,
+              ),
+            ),
+          ),
           if (PlatformUtils.isMobile) ...[
             const Spacer(),
-            StreamBuilder(
-              stream: Connectivity().onConnectivityChanged,
-              builder: (context, snapshot) {
-                if (snapshot.data case final data?) {
-                  final network = data.contains(ConnectivityResult.wifi)
-                      ? 'WIFI'
-                      : '数据';
-                  return Text('当前网络：$network', style: textStyle);
-                }
-                return const SizedBox.shrink();
-              },
+            Padding(
+              padding: const .only(left: 6, right: 16),
+              child: StreamBuilder(
+                stream: Connectivity().onConnectivityChanged,
+                builder: (context, snapshot) {
+                  if (snapshot.data case final data?) {
+                    return Icon(
+                      data.contains(ConnectivityResult.wifi)
+                          ? Icons.wifi
+                          : Icons.signal_cellular_alt,
+                      size: 20,
+                      color: colorScheme.primary,
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
             ),
-            const SizedBox(width: 4),
-          ],
+          ] else if (kDebugMode)
+            Padding(
+              padding: const .only(left: 6, right: 16),
+              child: Icon(Icons.wifi, size: 20, color: colorScheme.primary),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildBody(ThemeData theme) {
+  Widget _buildPopupMenuChild(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            text,
+            style: const TextStyle(height: 1),
+            strutStyle: const StrutStyle(height: 1, leading: 0),
+          ),
+          Icon(
+            size: 18,
+            Icons.keyboard_arrow_down,
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody() {
     final episodes = widget.episodes;
     return Expanded(
       child: Material(
@@ -486,7 +550,6 @@ class _DownloadPanelState extends State<DownloadPanel> {
                   final hasParts =
                       episode is ugc.EpisodeItem && episode.pages!.length > 1;
                   Widget child = _buildItem(
-                    theme: theme,
                     index: index,
                     hasParts: hasParts,
                     episode: episode,
@@ -503,14 +566,13 @@ class _DownloadPanelState extends State<DownloadPanel> {
                             horizontal: 12,
                             vertical: 5,
                           ),
-                          child: PagesPanel(
-                            list: episode.pages,
+                          child: PagePanel(
+                            parts: episode.pages,
                             cover: episode.arc?.pic,
-                            heroTag: widget.heroTag,
                             ugcIntroController: widget.ugcIntroController!,
                             bvid: episode.bvid ?? IdUtils.av2bv(episode.aid!),
                             cidSet: cidSet,
-                            onDownload: (Part part) => _onDownload(
+                            onDownload: (part) => _onDownload(
                               index: index,
                               episode: part,
                               parent: episode,
@@ -530,7 +592,6 @@ class _DownloadPanelState extends State<DownloadPanel> {
     );
   }
 
-  late final int? vipStatus = Pref.userInfoCache?.vipStatus;
   @pragma('vm:notify-debugger-on-exception')
   bool _onDownload({
     required int index,
@@ -556,15 +617,6 @@ class _DownloadPanelState extends State<DownloadPanel> {
       return false;
     }
 
-    if (kReleaseMode && episode.badge == '会员' && Accounts.mainEqVideo) {
-      if (vipStatus != 1) {
-        if (!isDownloadAll) {
-          SmartDialog.showToast('需要大会员');
-        }
-        return false;
-      }
-    }
-
     if (episode is ugc.EpisodeItem) {
       final pages = episode.pages!;
       if (pages.length > 1) {
@@ -573,11 +625,7 @@ class _DownloadPanelState extends State<DownloadPanel> {
         }
         if (isDownloadAll) {
           for (int i = 0; i < pages.length; i++) {
-            _onDownload(
-              index: i,
-              episode: pages[i],
-              parent: episode,
-            );
+            _onDownload(index: i, episode: pages[i], parent: episode);
           }
           return true;
         }
@@ -586,8 +634,7 @@ class _DownloadPanelState extends State<DownloadPanel> {
     }
 
     try {
-      final autoFolderInfo = _autoFolderInfo;
-      final autoFolderIndex = _seasonIndex(episode, parent);
+      final seasonInfo = _seasonInfo(episode, parent);
       switch (episode) {
         case Part part:
           _downloadService.downloadVideo(
@@ -596,10 +643,8 @@ class _DownloadPanelState extends State<DownloadPanel> {
             videoDetail: parent == null ? widget.videoDetail : null,
             videoArc: parent,
             videoQuality: _quality,
-            autoFolderTitle: autoFolderInfo?.title,
-            autoFolderSourceKey: autoFolderInfo?.sourceKey,
-            autoFolderIndex: autoFolderIndex,
-            seasonInfo: widget.videoDetail?.seasonInfo(index),
+            audioQuality: _audioQuality,
+            seasonInfo: seasonInfo,
           );
           break;
         case ugc.EpisodeItem episode:
@@ -609,10 +654,8 @@ class _DownloadPanelState extends State<DownloadPanel> {
             videoDetail: null,
             videoArc: episode,
             videoQuality: _quality,
-            autoFolderTitle: autoFolderInfo?.title,
-            autoFolderSourceKey: autoFolderInfo?.sourceKey,
-            autoFolderIndex: autoFolderIndex,
-            seasonInfo: widget.videoDetail?.seasonInfo(index),
+            audioQuality: _audioQuality,
+            seasonInfo: seasonInfo,
           );
           break;
         case pgc.EpisodeItem episode:
@@ -621,6 +664,7 @@ class _DownloadPanelState extends State<DownloadPanel> {
             pgcItem: widget.pgcItem!,
             episode: episode,
             quality: _quality,
+            audioQuality: _audioQuality,
           );
           break;
       }
@@ -637,12 +681,12 @@ class _DownloadPanelState extends State<DownloadPanel> {
   }
 
   Widget _buildItem({
-    required ThemeData theme,
     required int index,
     required bool hasParts,
     required bool isCurrentIndex,
     required ugc.BaseEpisodeItem episode,
   }) {
+    final theme = Theme.of(context);
     late String title;
     num? duration;
     int? pubdate;
@@ -694,7 +738,7 @@ class _DownloadPanelState extends State<DownloadPanel> {
         cacheWidth = item.dimension?.cacheWidth;
         break;
     }
-    late final primary = theme.colorScheme.primary;
+    late final primary = colorScheme.primary;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
@@ -751,11 +795,7 @@ class _DownloadPanelState extends State<DownloadPanel> {
                                 text: episode.badge,
                                 top: 6,
                                 right: 6,
-                                type: switch (episode.badge) {
-                                  '预告' => PBadgeType.gray,
-                                  '限免' => PBadgeType.free,
-                                  _ => PBadgeType.primary,
-                                },
+                                type: episode.badgeType,
                               ),
                           ],
                         )
@@ -780,8 +820,6 @@ class _DownloadPanelState extends State<DownloadPanel> {
                                     title,
                                     textAlign: TextAlign.start,
                                     style: TextStyle(
-                                      fontSize:
-                                          theme.textTheme.bodyMedium!.fontSize,
                                       height: 1.42,
                                       letterSpacing: 0.3,
                                       fontWeight: isCurrentIndex
@@ -800,7 +838,7 @@ class _DownloadPanelState extends State<DownloadPanel> {
                                     style: TextStyle(
                                       fontSize: 12,
                                       height: 1,
-                                      color: theme.colorScheme.outline,
+                                      color: colorScheme.outline,
                                       overflow: TextOverflow.clip,
                                     ),
                                   ),
@@ -833,7 +871,7 @@ class _DownloadPanelState extends State<DownloadPanel> {
                                 right: 0,
                                 child: Icon(
                                   size: 13,
-                                  color: theme.colorScheme.secondary.withValues(
+                                  color: colorScheme.secondary.withValues(
                                     alpha: 0.8,
                                   ),
                                   FontAwesomeIcons.circleDown,
@@ -907,24 +945,18 @@ class _DownloadPanelState extends State<DownloadPanel> {
             ),
             SizedBox(
               height: 20,
-              child: VerticalDivider(
-                width: 1,
-                color: dividerColor,
-              ),
+              child: VerticalDivider(width: 1, color: dividerColor),
             ),
           ],
           _buildBottomBtn(
             text: '查看缓存',
-            onTap: () => Navigator.of(context).push(
-              GetPageRoute(page: () => const DownloadPage()),
-            ),
+            onTap: () => Navigator.of(
+              context,
+            ).push(GetPageRoute(page: () => const DownloadPage())),
           ),
           SizedBox(
             height: 20,
-            child: VerticalDivider(
-              width: 1,
-              color: dividerColor,
-            ),
+            child: VerticalDivider(width: 1, color: dividerColor),
           ),
           _buildQualityBtn(theme),
         ],
@@ -944,12 +976,7 @@ class _DownloadPanelState extends State<DownloadPanel> {
             }
           },
           itemBuilder: (context) => VideoQuality.values
-              .map(
-                (e) => PopupMenuItem(
-                  value: e,
-                  child: Text(e.desc),
-                ),
-              )
+              .map((e) => PopupMenuItem(value: e, child: Text(e.desc)))
               .toList(),
           child: SizedBox(
             height: 40,
@@ -975,22 +1002,14 @@ class _DownloadPanelState extends State<DownloadPanel> {
     );
   }
 
-  Widget _buildBottomBtn({
-    required String text,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildBottomBtn({required String text, required VoidCallback onTap}) {
     return Expanded(
       child: InkWell(
         onTap: onTap,
         child: SizedBox(
           height: 40,
           width: double.infinity,
-          child: Center(
-            child: Text(
-              text,
-              textAlign: TextAlign.center,
-            ),
-          ),
+          child: Center(child: Text(text, textAlign: TextAlign.center)),
         ),
       ),
     );

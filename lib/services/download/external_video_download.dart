@@ -4,7 +4,7 @@ import 'package:PiliPlus/http/download.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models/common/account_type.dart';
-import 'package:PiliPlus/models/common/video/video_quality.dart';
+import 'package:PiliPlus/models/common/video/base_quality.dart';
 import 'package:PiliPlus/models/common/video/video_type.dart';
 import 'package:PiliPlus/models/video/play/url.dart';
 import 'package:PiliPlus/models_new/download/bili_download_entry_info.dart';
@@ -201,7 +201,7 @@ class ExternalVideoDownload {
           service.waitDownloadQueue.add(entry);
         }
         if (service.curDownload.value?.status.isDownloading != true) {
-          unawaited(service.startDownload(entry));
+          unawaited(service.queueDownload(entry));
         } else {
           service.waitDownloadQueue.refresh();
         }

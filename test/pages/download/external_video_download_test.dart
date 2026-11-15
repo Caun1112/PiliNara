@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:PiliPlus/http/loading_state.dart';
-import 'package:PiliPlus/models/common/video/video_quality.dart';
+import 'package:PiliPlus/models/common/video/base_quality.dart';
 import 'package:PiliPlus/models/video/play/url.dart';
 import 'package:PiliPlus/models_new/download/bili_download_entry_info.dart';
 import 'package:PiliPlus/models_new/video/video_detail/data.dart';
@@ -70,6 +70,7 @@ class FakeDownloadService extends DownloadService {
     ugc.EpisodeItem? videoArc,
     required VideoQuality videoQuality,
     int? requiredVideoQuality,
+    AudioQuality? audioQuality,
     String? autoFolderTitle,
     String? autoFolderSourceKey,
     int? autoFolderIndex,
@@ -98,7 +99,7 @@ class FakeDownloadService extends DownloadService {
   }
 
   @override
-  Future<void> startDownload(BiliDownloadEntryInfo entry) async {
+  Future<void> queueDownload(BiliDownloadEntryInfo entry) async {
     events.add('resume');
     resumeCount++;
     curDownload.value = entry;

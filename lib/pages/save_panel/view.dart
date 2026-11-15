@@ -164,7 +164,11 @@ class _SavePanelState extends State<SavePanel> {
       },
     );
     _item = widget.item;
-    if (_item case final ReplyInfo reply) {
+    if ((_item is Iterable<ReplyInfo> &&
+                (_item as Iterable<ReplyInfo>).isNotEmpty
+            ? (_item as Iterable<ReplyInfo>).first
+            : _item)
+        case final ReplyInfo reply) {
       itemType = '评论';
       final currentRoute = Get.currentRoute;
       late final hasRoot = reply.hasRoot();
@@ -181,9 +185,7 @@ class _SavePanelState extends State<SavePanel> {
             final ctr = Get.find<PgcIntroController>(tag: heroTag);
             final pgcItem = ctr.pgcItem;
             final cid = ctr.cid.value;
-            final episode = pgcItem.episodes!.firstWhere(
-              (e) => e.cid == cid,
-            );
+            final episode = ctr.findEpisode(cid);
             cover = episode.cover;
             title =
                 episode.shareCopy ??
@@ -271,7 +273,8 @@ class _SavePanelState extends State<SavePanel> {
           final ctr = Get.find<MusicDetailController>(
             tag: Get.parameters['musicId'],
           );
-          enterUri = 'enterUri=${Uri.encodeComponent(ctr.shareUrl)}'; // official client cannot parse it
+          enterUri =
+              'enterUri=${Uri.encodeComponent(ctr.shareUrl)}'; // official client cannot parse it
           final data = ctr.infoState.value.dataOrNull;
           if (data != null) {
             coverType = _CoverType.square;
@@ -289,10 +292,14 @@ class _SavePanelState extends State<SavePanel> {
           }
         } catch (_) {}
         uri = 'bilibili://comment/detail/$type/$oid/$rootId/?$anchor$enterUri';
+      } else {
+        uri =
+            'bilibili://comment/detail/${reply.type.toInt()}/${reply.oid}/${hasRoot ? reply.root : reply.id}/${hasRoot ? '?anchor=${reply.id}' : ''}';
       }
 
       if (kDebugMode) debugPrint(uri);
-      if (reply.hasRoot() || reply.replies.length < reply.count.toInt()) {
+      if (_item is ReplyInfo &&
+          (reply.hasRoot() || reply.replies.length < reply.count.toInt())) {
         _isLoadingReplies = true;
         unawaited(_loadCompleteReply(reply));
       }
@@ -485,10 +492,8 @@ class _SavePanelState extends State<SavePanel> {
     });
   }
 
-  double get _smartReplyContentWidth => max(
-    240.0,
-    context.mediaQueryShortestSide - 64,
-  );
+  double get _smartReplyContentWidth =>
+      max(240.0, context.mediaQueryShortestSide - 64);
 
   double _smartReplyHeightBudget(ReplyInfo reply) {
     final mediaQuery = MediaQuery.of(context);
@@ -572,10 +577,8 @@ class _SavePanelState extends State<SavePanel> {
           ..clear()
           ..addEntries(
             selection.recommendations.map(
-              (recommendation) => MapEntry(
-                recommendation.replyId,
-                recommendation.reason,
-              ),
+              (recommendation) =>
+                  MapEntry(recommendation.replyId, recommendation.reason),
             ),
           );
         _smartReplyMode = mode;
@@ -1079,6 +1082,21 @@ class _SavePanelState extends State<SavePanel> {
                                       fullWidthReplies: true,
                                     ),
                                   ),
+                                  Iterable<ReplyInfo> chain => IgnorePointer(
+                                    child: Column(
+                                      children: chain
+                                          .map(
+                                            (reply) => ReplyItemGrpc(
+                                              replyItem: reply,
+                                              replyLevel: 0,
+                                              needDivider: reply != chain.last,
+                                              upMid: widget.upMid,
+                                              showFullImages: showFullImages,
+                                            ),
+                                          )
+                                          .toList(),
+                                    ),
+                                  ),
                                   DynamicItemModel dyn => IgnorePointer(
                                     child: DynamicPanel(
                                       item: dyn,
@@ -1259,10 +1277,7 @@ class _SavePanelState extends State<SavePanel> {
                 gradient: LinearGradient(
                   begin: .topCenter,
                   end: .bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.black54,
-                  ],
+                  colors: [Colors.transparent, Colors.black54],
                 ),
               ),
               child: Padding(

@@ -1,16 +1,14 @@
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/http/video.dart';
 import 'package:PiliPlus/models/common/account_type.dart';
-import 'package:PiliPlus/models/common/video/audio_quality.dart';
+import 'package:PiliPlus/models/common/video/base_quality.dart';
 import 'package:PiliPlus/models/common/video/video_decode_type.dart';
-import 'package:PiliPlus/models/common/video/video_quality.dart';
 import 'package:PiliPlus/models/common/video/video_type.dart';
 import 'package:PiliPlus/models/video/play/url.dart';
 import 'package:PiliPlus/models_new/download/bili_download_entry_info.dart';
 import 'package:PiliPlus/models_new/download/bili_download_media_file_info.dart';
 import 'package:PiliPlus/models_new/sponsor_block/segment_item.dart';
 import 'package:PiliPlus/utils/accounts.dart';
-import 'package:PiliPlus/utils/extension/iterable_ext.dart';
 import 'package:PiliPlus/utils/storage_pref.dart';
 import 'package:PiliPlus/utils/video_utils.dart';
 import 'package:collection/collection.dart';
@@ -45,7 +43,14 @@ abstract final class DownloadHttp {
       return requiredQuality;
     }
     if (response.dash != null) {
-      return response.findAvailableVideoQuality(preferredQuality);
+      final videos = response.dash!.video!;
+      final qualities =
+          videos.map((video) => video.quality.code).toSet().toList()
+            ..sort((a, b) => b.compareTo(a));
+      return qualities.firstWhere(
+        (quality) => quality <= preferredQuality,
+        orElse: () => qualities.last,
+      );
     }
     return response.supportFormats
             ?.firstWhereOrNull((format) => format.quality == response.quality)
@@ -110,46 +115,40 @@ abstract final class DownloadHttp {
       entry.segments = response.clipInfoList;
 
       if (dash != null) {
-        /// 优先顺序 设置中指定解码格式 -> 当前可选的首个解码格式
-        final FormatItem? targetSupportFormats;
+        final int targetQuality;
+        final FormatItem? targetFormat;
         final VideoItem videoDash;
         if (entry.requiredVideoQuality != null) {
-          targetSupportFormats = response.supportFormats?.firstWhereOrNull(
-            (format) => format.quality == targetVideoQa,
+          targetQuality = targetVideoQa;
+          targetFormat = response.supportFormats?.firstWhereOrNull(
+            (format) => format.quality == targetQuality,
           );
           videoDash = selectExactDashVideo(
             response,
-            quality: targetVideoQa,
+            quality: targetQuality,
             preferredCodecs: Pref.preferCodecs,
           );
         } else {
-          final supportFormats = response.supportFormats!;
-          targetSupportFormats = supportFormats.firstWhere(
-            (e) => e.quality == targetVideoQa,
-            orElse: () => supportFormats.first,
-          );
-          final currentDecodeFormats = VideoUtils.selectCodec(
-            targetSupportFormats.codecs!,
+          final result = VideoUtils.findTargetVideo(
+            dash.video!,
+            entry.preferedVideoQuality,
+            response.acceptQuality,
+            response.supportFormats!,
             Pref.preferCodecs,
           );
-          final videosList = dash.video!
-              .where((e) => e.quality.code == targetVideoQa)
-              .toList();
-          videoDash = videosList.firstWhere(
-            (e) => currentDecodeFormats.codes.any(e.codecs!.startsWith),
-            orElse: () => videosList.first,
-          );
+          targetQuality = result.$1;
+          targetFormat = result.$2;
+          videoDash = result.$4;
         }
+        final videoUrl = VideoUtils.getCdnUrl(videoDash.playUrls);
 
         entry
-          ..typeTag = targetVideoQa.toString()
-          ..videoQuality = targetVideoQa
-          ..preferedVideoQuality = targetVideoQa
+          ..typeTag = targetQuality.toString()
+          ..videoQuality = targetQuality
+          ..preferedVideoQuality = targetQuality
           ..qualityPithyDescription =
-              targetSupportFormats?.newDesc ??
-              VideoQuality.fromCode(targetVideoQa).desc;
-
-        final videoUrl = VideoUtils.getCdnUrl(videoDash.playUrls);
+              targetFormat?.displayDesc ??
+              VideoQuality.fromCode(targetQuality).shortDesc;
 
         final Type2File videoFile = Type2File(
           id: videoDash.id,
@@ -165,23 +164,13 @@ abstract final class DownloadHttp {
           dashDrmType: 0,
         );
         List<Type2File>? audioFileList;
-        final List<AudioItem>? audioDashList = dash.audio;
-        if (audioDashList != null && audioDashList.isNotEmpty) {
-          final preferAudioQa = Pref.defaultAudioQa;
-          final List<int> audioIds = audioDashList
-              .map((map) => map.id)
-              .toList();
-          int closestNumber = audioIds.findClosestTarget(
-            (e) => e <= preferAudioQa,
-            (a, b) => a > b ? a : b,
-          );
-          if (!audioIds.contains(preferAudioQa) &&
-              audioIds.any((e) => e > preferAudioQa)) {
-            closestNumber = AudioQuality.k192.code;
-          }
-          final AudioItem audioDash = audioDashList.firstWhere(
-            (e) => e.id == closestNumber,
-            orElse: () => audioDashList.first,
+        final List<AudioItem>? audioList = dash.audio;
+        if (audioList != null && audioList.isNotEmpty) {
+          final preferAudioQa =
+              entry.preferedAudioQuality ?? Pref.defaultAudioQa;
+          final audioDash = VideoUtils.findTargetAudio(
+            audioList,
+            preferAudioQa,
           );
           final audioUrl = VideoUtils.getCdnUrl(
             audioDash.playUrls,
@@ -230,10 +219,8 @@ abstract final class DownloadHttp {
         final FormatItem? formatItem = response.supportFormats
             ?.firstWhereOrNull((e) => e.quality == response.quality);
         final String description =
-            formatItem?.newDesc ??
-            (entry.requiredVideoQuality != null
-                ? VideoQuality.fromCode(targetVideoQa).desc
-                : VideoQuality.clear480.desc);
+            formatItem?.displayDesc ??
+            VideoQuality.fromCode(targetVideoQa).shortDesc;
 
         entry
           ..mediaType = 1
@@ -243,10 +230,7 @@ abstract final class DownloadHttp {
           ..qualityPithyDescription = description;
 
         final List<Type1PlayerCodecConfig> playerCodecConfigList = [
-          Type1PlayerCodecConfig(
-            player: "IJK_PLAYER",
-            useIjkMediaCodec: false,
-          ),
+          Type1PlayerCodecConfig(player: "IJK_PLAYER", useIjkMediaCodec: false),
           Type1PlayerCodecConfig(
             player: "ANDROID_PLAYER",
             useIjkMediaCodec: false,

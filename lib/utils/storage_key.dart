@@ -9,6 +9,7 @@ abstract final class SettingBoxKey {
       defaultAudioQa = 'defaultAudioQa',
       defaultAudioQaCellular = 'defaultAudioQaCellular',
       autoPlayEnable = 'autoPlayEnable',
+      autoPlayWifiOnly = 'autoPlayWifiOnly',
       fullScreenMode = 'fullScreenMode',
       preferCodecs = 'preferCodecs',
       preferCodecsCellular = 'preferCodecsCellular',
@@ -18,6 +19,8 @@ abstract final class SettingBoxKey {
       audioOutput = 'audioOutput',
       bufferSize = 'bufferSize',
       bufferSec = 'bufferSec',
+      liveBufferSize = 'liveBufferSize',
+      liveBufferSec = 'liveBufferSec',
       hardwareDecoding = 'hardwareDecoding',
       videoSync = 'videoSync',
       autosync = 'autosync',
@@ -64,6 +67,8 @@ abstract final class SettingBoxKey {
       autoAudioOnlyInBackground = 'autoAudioOnlyInBackground',
       appRcmd = 'appRcmd',
       rcmdMode = 'rcmdMode',
+      rcmdSource = 'rcmdSource',
+      rcmdSources = 'rcmdSources',
       enableSaveLastData = 'enableSaveLastData',
       minDurationForRcmd = 'minDurationForRcmd',
       minPlayForRcmd = 'minPlayForRcmd',
@@ -159,6 +164,7 @@ abstract final class SettingBoxKey {
       showDynActionBar = 'showDynActionBar',
       darkVideoPage = 'darkVideoPage',
       enableSlideVolumeBrightness = 'enableSlideVolumeBrightness',
+      enableScrollVolume = 'enableScrollVolume',
       enableSlideFS = 'enableSlideFS',
       retryCount = 'retryCount',
       retryDelay = 'retryDelay',
@@ -189,6 +195,7 @@ abstract final class SettingBoxKey {
       appVolume = 'appVolume',
       enableVolumeBoost = 'enableVolumeBoost',
       downloadPath = 'downloadPath',
+      cachePlayInfo = 'cachePlayInfo',
       imageSavePath = 'imageSavePath',
       followOrderType = 'followOrderType',
       enableImgMenu = 'enableImgMenu',
@@ -203,7 +210,11 @@ abstract final class SettingBoxKey {
       enableDocProvider = 'enableDocProvider',
       enableEmoteTooltip = 'enableEmoteTooltip',
       mineTabs = 'mineTabs',
-      buvid = 'buvid';
+      buvid = 'buvid',
+      blockAtOnlyReply = 'blockAtOnlyReply',
+      blockReplyAtCount = 'blockReplyAtCount',
+      filterIntro = 'filterIntro',
+      showRefreshFAB = 'showRefreshFAB';
 
   static const String enableAiChat = 'enableAiChat',
       aiApiUrl = 'aiApiUrl',
@@ -214,6 +225,10 @@ abstract final class SettingBoxKey {
       aiPromptTemplates = 'aiPromptTemplates',
       aiAutoScroll = 'aiAutoScroll',
       aiReasoningEffort = 'aiReasoningEffort';
+
+  static const String enableFullScreenSC = 'enableFullScreenSC',
+      fullScreenSCOpacity = 'fullScreenSCOpacity',
+      fullScreenSCScale = 'fullScreenSCScale';
 
   static const String minimizeOnExit = 'minimizeOnExit',
       windowSize = 'windowSize',
@@ -315,6 +330,7 @@ abstract final class SettingBoxKey {
       useSideBar = 'useSideBar',
       autoSideBar = 'autoSideBar',
       sideBarThreshold = 'sideBarThreshold',
+      hideSideBarLabel = 'hideSideBarLabel',
       enableMYBar = 'enableMYBar',
       enableGradientBg = 'enableGradientBg',
       hideTopBar = 'hideSearchBar',
@@ -332,6 +348,7 @@ abstract final class SettingBoxKey {
       liveCdnUrl = 'liveCdnUrl',
       saveReply = 'saveReply',
       swapReplyLikeDislike = 'swapReplyLikeDislike',
+      foldDepth = 'foldDepth',
       remarkReplaceName = 'remarkReplaceName',
       appFont = 'appFont',
       customAppFont = 'customAppFont',
@@ -346,8 +363,11 @@ abstract final class LocalCacheKey {
       recommendBlockedMids = 'recommendBlockedMids',
       replyBlockedMids = 'replyBlockedMids',
       danmakuFilterRules = 'danmakuFilterRules',
-      downloadCollections = 'downloadCollections',
       lastLocalPlayed = 'lastLocalPlayed',
+      downloadFolders = 'downloadFolders',
+      /// 2.1.6 及更早的 fork 用它同时存自动归组，现只在首次启动时读一次，
+      /// 取回用户手工建的文件夹（见 DownloadFolderService 的导入逻辑）。
+      legacyDownloadCollections = 'downloadCollections',
       mixinKey = 'mixinKey',
       timeStamp = 'timeStamp',
       remarkMids = 'remarkMids',

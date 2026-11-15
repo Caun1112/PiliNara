@@ -1,12 +1,26 @@
 import 'dart:io';
 
-import 'package:PiliPlus/models/common/video/video_quality.dart';
+import 'package:PiliPlus/models/common/video/base_quality.dart';
 import 'package:PiliPlus/models_new/download/bili_download_entry_info.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
+import 'package:PiliPlus/utils/storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:path/path.dart' as path;
 
 void main() {
+  late Directory settingsDir;
+  setUpAll(() async {
+    settingsDir = await Directory.systemTemp.createTemp(
+      'download_quality_replace_storage_',
+    );
+    Hive.init(settingsDir.path);
+    GStorage.setting = await Hive.openBox('setting');
+  });
+  tearDownAll(() async {
+    await Hive.close();
+    await settingsDir.delete(recursive: true);
+  });
   late Directory tempDir;
   late DownloadService downloadService;
 
@@ -38,12 +52,7 @@ void main() {
         danmakuCount: 0,
         avid: 1,
         bvid: 'BV1test',
-        pageData: PageInfo(
-          cid: 2,
-          page: 1,
-          hasAlias: false,
-          tid: 0,
-        ),
+        pageData: PageInfo(cid: 2, page: 1, hasAlias: false, tid: 0),
       )
       ..pageDirPath = tempDir.path
       ..entryDirPath = entryDir.path;

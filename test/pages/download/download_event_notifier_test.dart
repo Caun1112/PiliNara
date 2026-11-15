@@ -1,8 +1,12 @@
-import 'package:PiliPlus/models/common/video/video_quality.dart';
+import 'dart:io';
+
+import 'package:PiliPlus/models/common/video/base_quality.dart';
 import 'package:PiliPlus/models_new/download/bili_download_entry_info.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
+import 'package:PiliPlus/utils/storage.dart';
 import 'package:flutter/foundation.dart' show ValueChanged;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce/hive.dart';
 
 BiliDownloadEntryInfo _entry(int cid) => BiliDownloadEntryInfo(
   isCompleted: false,
@@ -21,6 +25,18 @@ BiliDownloadEntryInfo _entry(int cid) => BiliDownloadEntryInfo(
 );
 
 void main() {
+  late Directory settingsDir;
+  setUpAll(() async {
+    settingsDir = await Directory.systemTemp.createTemp(
+      'download_event_notifier_',
+    );
+    Hive.init(settingsDir.path);
+    GStorage.setting = await Hive.openBox('setting');
+  });
+  tearDownAll(() async {
+    await Hive.close();
+    await settingsDir.delete(recursive: true);
+  });
   for (final failed in [false, true]) {
     final event = failed ? 'failed' : 'completed';
 

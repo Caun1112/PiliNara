@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:PiliPlus/http/download.dart';
 import 'package:PiliPlus/models/common/video/video_decode_type.dart';
-import 'package:PiliPlus/models/common/video/video_quality.dart';
+import 'package:PiliPlus/models/common/video/base_quality.dart';
 import 'package:PiliPlus/models/video/play/url.dart';
 import 'package:PiliPlus/models_new/download/bili_download_entry_info.dart';
 import 'package:PiliPlus/utils/path_utils.dart';
@@ -125,27 +125,30 @@ void main() {
     );
   });
 
-  test('strict480P rejects multi-segment durl instead of exporting a partial video', () {
-    final response = PlayUrlModel(quality: 32)
-      ..durl = [
-        Durl(url: 'https://example.com/segment1.mp4'),
-        Durl(url: 'https://example.com/segment2.mp4'),
-      ];
-    expect(
-      () => select480(response),
-      throwsA(
-        isA<StateError>().having(
-          (error) => error.message,
-          'unsupported segmented download',
-          contains('多个视频分段'),
+  test(
+    'strict480P rejects multi-segment durl instead of exporting a partial video',
+    () {
+      final response = PlayUrlModel(quality: 32)
+        ..durl = [
+          Durl(url: 'https://example.com/segment1.mp4'),
+          Durl(url: 'https://example.com/segment2.mp4'),
+        ];
+      expect(
+        () => select480(response),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'unsupported segmented download',
+            contains('多个视频分段'),
+          ),
         ),
-      ),
-    );
-    expect(
-      DownloadHttp.selectVideoQuality(response, preferredQuality: 32),
-      32,
-    );
-  });
+      );
+      expect(
+        DownloadHttp.selectVideoQuality(response, preferredQuality: 32),
+        32,
+      );
+    },
+  );
 
   test('strict codecs use actual tracks despite missing or stale metadata', () {
     final avc = video(VideoQuality.clear480);
@@ -186,10 +189,7 @@ void main() {
       [video(VideoQuality.high720), video(VideoQuality.fluent360)],
       advertised: [64, 16],
     );
-    expect(
-      DownloadHttp.selectVideoQuality(response, preferredQuality: 32),
-      16,
-    );
+    expect(DownloadHttp.selectVideoQuality(response, preferredQuality: 32), 16);
   });
 
   test(
