@@ -161,6 +161,9 @@ class ExternalVideoDownload {
       entry.cid == request.cid &&
       entry.avid == request.aid &&
       entry.bvid == request.bvid &&
+      // Existing media can only be reused when it was created with the strict
+      // requirement. Legacy entries may have incorrectly labelled durl media.
+      entry.requiredVideoQuality == ExternalDownloadRequest.quality &&
       (entry.videoQuality ??
               (entry.isCompleted ? null : entry.preferedVideoQuality)) ==
           ExternalDownloadRequest.quality;
@@ -210,5 +213,6 @@ class ExternalVideoDownload {
     return true;
   }
 
-  Future<void> _showQualityConflict() => _toast('已有其他画质缓存，请在下载页删除后重试');
+  Future<void> _showQualityConflict() =>
+      _toast('已有其他画质缓存或未经严格校验的缓存，请在下载页处理后重试');
 }

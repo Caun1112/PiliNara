@@ -52,10 +52,9 @@ abstract final class DownloadHttp {
         orElse: () => qualities.last,
       );
     }
-    return response.supportFormats
-            ?.firstWhereOrNull((format) => format.quality == response.quality)
-            ?.quality ??
-        VideoQuality.clear480.code;
+    // durl reports its actual quality directly; absent metadata must never
+    // turn an unknown or higher-quality cache into a claimed 480P file.
+    return response.quality ?? (throw StateError('播放地址未提供实际画质，无法缓存'));
   }
 
   /// Exact downloads choose a codec from returned tracks even when optional

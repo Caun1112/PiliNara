@@ -184,6 +184,21 @@ void main() {
     );
   });
 
+  test('ordinary durl uses actual quality without support metadata', () {
+    expect(
+      DownloadHttp.selectVideoQuality(
+        PlayUrlModel(quality: 64),
+        preferredQuality: 32,
+      ),
+      64,
+    );
+    expect(
+      () =>
+          DownloadHttp.selectVideoQuality(PlayUrlModel(), preferredQuality: 32),
+      throwsStateError,
+    );
+  });
+
   test('ordinary downloads keep their existing quality fallback', () {
     final response = dashResponse(
       [video(VideoQuality.high720), video(VideoQuality.fluent360)],

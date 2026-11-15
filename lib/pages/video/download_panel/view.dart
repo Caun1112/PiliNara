@@ -22,6 +22,7 @@ import 'package:PiliPlus/models_new/video/video_detail/page.dart';
 import 'package:PiliPlus/pages/download/download/view.dart';
 import 'package:PiliPlus/pages/download/utils/cache_share.dart';
 import 'package:PiliPlus/pages/video/controller.dart';
+import 'package:PiliPlus/pages/video/download_panel/episode_selection.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/widgets/page.dart';
 import 'package:PiliPlus/services/download/download_service.dart';
@@ -141,7 +142,7 @@ class _DownloadPanelState extends State<DownloadPanel> {
       _qualityOptions = _buildQualityOptions();
       unawaited(_resolveQualitySizes());
     }
-    if (widget.index != -1) {
+    if (!widget.shareAfterDownload && widget.index != -1) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _listController.jumpToItem(
           index: widget.index,
@@ -386,13 +387,22 @@ class _DownloadPanelState extends State<DownloadPanel> {
     if (_selectingQualityCode != null) {
       return;
     }
+    final currentCid = widget.videoDetailController.cid.value;
+    final episode = widget.episodes[widget.index];
+    if (episode is ugc.EpisodeItem &&
+        findCurrentCollectionPart(
+              episode,
+              currentCid,
+              videoDetail: widget.videoDetail,
+            ) ==
+            null) {
+      SmartDialog.showToast('无法确定当前分P，请稍后重试');
+      return;
+    }
     setState(() => _selectingQualityCode = quality.code);
     try {
       await Pref.setDefaultDownloadVideoQa(quality.code);
       _quality = quality;
-      final currentCid =
-          widget.ugcIntroController?.seasonCid ??
-          widget.videoDetailController.cid.value;
       final removed = await _downloadService.removeDownloadForQualityChange(
         cid: currentCid,
         quality: quality.code,
@@ -413,16 +423,22 @@ class _DownloadPanelState extends State<DownloadPanel> {
   }
 
   bool _downloadCurrent(int currentCid) {
-    final episode = widget.episodes.first;
-    if (episode case ugc.EpisodeItem(:final pages?)) {
-      final part = pages.firstWhereOrNull((part) => part.cid == currentCid);
-      if (part != null) {
-        return _onDownload(
-          index: part.page ?? widget.index,
-          episode: part,
-          parent: episode,
-        );
+    final episode = widget.episodes[widget.index];
+    if (episode is ugc.EpisodeItem) {
+      final part = findCurrentCollectionPart(
+        episode,
+        currentCid,
+        videoDetail: widget.videoDetail,
+      );
+      if (part == null) {
+        SmartDialog.showToast('无法确定当前分P，请稍后重试');
+        return false;
       }
+      return _onDownload(
+        index: part.page ?? widget.index,
+        episode: part,
+        parent: episode,
+      );
     }
     return _onDownload(index: widget.index, episode: episode);
   }

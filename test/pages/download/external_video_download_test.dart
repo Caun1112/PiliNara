@@ -30,6 +30,7 @@ ExternalDownloadRequest _request() => ExternalDownloadRequest.tryParse(
 BiliDownloadEntryInfo _entry({
   int cid = _cid,
   int quality = 32,
+  int? requiredQuality = 32,
   bool completed = false,
   DownloadStatus status = DownloadStatus.wait,
 }) => BiliDownloadEntryInfo(
@@ -39,6 +40,7 @@ BiliDownloadEntryInfo _entry({
   title: 'Video',
   cover: 'https://example.com/cover.jpg',
   videoQuality: completed ? quality : null,
+  requiredVideoQuality: requiredQuality,
   preferedVideoQuality: quality,
   guessedTotalBytes: 0,
   totalTimeMilli: 1000,
@@ -202,7 +204,7 @@ void main() {
       final pending = _entry();
       service.waitDownloadQueue.add(pending);
       await coordinator().open(_request());
-      expect(events, ['navigate', 'persist-strict', 'share', 'resume']);
+      expect(events, ['navigate', 'share', 'resume']);
       expect(pending.requiredVideoQuality, 32);
       expect(service.curDownload.value, same(pending));
       expect(service.enqueueCount, 0);
@@ -219,7 +221,7 @@ void main() {
         service.waitDownloadQueue.add(pending);
         service.curDownload.value = pending;
         await coordinator().open(_request());
-        expect(events, ['navigate', 'persist-strict', 'share', 'resume']);
+        expect(events, ['navigate', 'share', 'resume']);
         expect(service.resumeCount, 1);
         expect(service.enqueueCount, 0);
       },
@@ -234,7 +236,7 @@ void main() {
       service.curDownload.value = active;
       service.waitDownloadQueue.add(pending);
       await coordinator().open(_request());
-      expect(events, ['navigate', 'persist-strict', 'share']);
+      expect(events, ['navigate', 'share']);
       expect(service.resumeCount, 0);
       expect(service.curDownload.value, same(active));
       expect(active.status, DownloadStatus.downloading);
@@ -258,7 +260,11 @@ void main() {
   test(
     'another quality remains untouched and reports a visible conflict',
     () async {
-      final original = _entry(completed: true, quality: 64);
+      final original = _entry(
+        completed: true,
+        quality: 64,
+        requiredQuality: null,
+      );
       service.downloadList.add(original);
       await coordinator().open(_request());
       expect(events, ['navigate']);
@@ -269,6 +275,16 @@ void main() {
       expect(service.enqueueCount, 0);
     },
   );
+
+  test('unverified legacy 480P cache is never reused', () async {
+    final original = _entry(completed: true, requiredQuality: null);
+    service.downloadList.add(original);
+    await coordinator().open(_request());
+    expect(events, ['navigate']);
+    expect(messages.single, contains('未经严格校验'));
+    expect(service.downloadList.single, same(original));
+    expect(service.enqueueCount, 0);
+  });
 
   test(
     'metadata missing the requested CID cannot download another part',

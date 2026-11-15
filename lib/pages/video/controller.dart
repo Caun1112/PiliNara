@@ -47,6 +47,7 @@ import 'package:PiliPlus/pages/common/publish/publish_route.dart';
 import 'package:PiliPlus/pages/danmaku/mask/controller.dart';
 import 'package:PiliPlus/pages/search/widgets/search_text.dart';
 import 'package:PiliPlus/pages/sponsor_block/block_mixin.dart';
+import 'package:PiliPlus/pages/video/download_panel/episode_selection.dart';
 import 'package:PiliPlus/pages/video/download_panel/view.dart';
 import 'package:PiliPlus/pages/video/introduction/pgc/controller.dart';
 import 'package:PiliPlus/pages/video/introduction/ugc/controller.dart';
@@ -2142,7 +2143,11 @@ class VideoDetailController extends GetxController
     } else {
       try {
         pgcItem = pgcIntroCtr.pgcItem;
-        episodes = pgcItem.episodes;
+        episodes = pgcDownloadEpisodes(
+          pgcItem,
+          pgcIntroCtr.episodeType,
+          pgcIntroCtr.sectionIndex,
+        );
       } catch (e, s) {
         if (kDebugMode) {
           debugPrint('download pgc: $e\n\n$s');
@@ -2150,20 +2155,15 @@ class VideoDetailController extends GetxController
       }
     }
     if (episodes != null && episodes.isNotEmpty) {
-      final currentCid = isUgc ? ugcIntroCtr.seasonCid ?? cid.value : cid.value;
-      ugc.BaseEpisodeItem? currentEpisode;
-      if (currentOnly) {
-        currentEpisode = episodes.firstWhereOrNull(
-          (episode) =>
-              episode.cid == currentCid ||
-              (episode is ugc.EpisodeItem &&
-                  episode.pages?.any((page) => page.cid == currentCid) == true),
-        );
-        if (currentEpisode == null) {
-          SmartDialog.showToast('未找到当前视频');
-          return;
-        }
-        episodes = [currentEpisode];
+      final currentCid = cid.value;
+      final index = findDownloadEpisodeIndex(
+        episodes,
+        currentCid,
+        seasonCid: isUgc ? ugcIntroCtr.seasonCid : null,
+      );
+      if (currentOnly && index == -1) {
+        SmartDialog.showToast('未找到当前视频');
+        return;
       }
 
       final downloadService = Get.find<DownloadService>();
@@ -2176,10 +2176,6 @@ class VideoDetailController extends GetxController
           .map((e) => e.cid)
           .toSet();
 
-
-      final index = currentOnly
-          ? 0
-          : episodes.indexWhere((episode) => episode.cid == currentCid);
 
       if (currentOnly) {
         await showDialog<void>(

@@ -50,7 +50,10 @@ jobs:
 
       - name: 校验并记录 iOS 依赖
         run: |
+          # geetest_ios.patch 增加 iOS 专用依赖，使用对应的固定锁文件。
+          cp .github/locks/pubspec-ios.lock pubspec.lock
           flutter pub get --enforce-lockfile
+          cmp pubspec.lock .github/locks/pubspec-ios.lock
           cp pubspec.lock BUILD-pubspec.lock
 
       - name: 静态分析
