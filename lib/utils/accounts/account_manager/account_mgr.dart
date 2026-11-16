@@ -161,6 +161,7 @@ class AccountManager extends Interceptor {
   }
 
   static void toast(DioException err) {
+    if (err.requestOptions.extra['suppressErrorToast'] == true) return;
     const skipShow = [
       'heartbeat',
       'history/report',

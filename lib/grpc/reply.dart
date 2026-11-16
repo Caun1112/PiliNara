@@ -2,6 +2,7 @@ import 'package:PiliPlus/common/constants.dart';
 import 'package:PiliPlus/grpc/bilibili/main/community/reply/v1.pb.dart';
 import 'package:PiliPlus/grpc/bilibili/pagination.pb.dart';
 import 'package:PiliPlus/grpc/grpc_req.dart';
+import 'package:PiliPlus/grpc/reply_fallback.dart';
 import 'package:PiliPlus/grpc/url.dart';
 import 'package:PiliPlus/http/loading_state.dart';
 import 'package:PiliPlus/utils/global_data.dart';
@@ -131,20 +132,30 @@ abstract final class ReplyGrpc {
     required String? offset,
     // Int64? cursorNext,
   }) async {
-    final res = await GrpcReq.request(
-      GrpcUrl.mainList,
-      MainListReq(
-        oid: Int64(oid),
-        type: Int64(type),
-        rpid: rpid,
-        // cursor: CursorReq(
-        //   mode: mode,
-        //   next: cursorNext,
-        // ),
-        mode: mode,
-        pagination: offset == null ? null : FeedPagination(offset: offset),
+    final res = await ReplyFallback.request<MainListReply>(
+      offset: offset,
+      primary: () => GrpcReq.request(
+        GrpcUrl.mainList,
+        MainListReq(
+          oid: Int64(oid),
+          type: Int64(type),
+          rpid: rpid,
+          // cursor: CursorReq(
+          //   mode: mode,
+          //   next: cursorNext,
+          // ),
+          mode: mode,
+          pagination: offset == null ? null : FeedPagination(offset: offset),
+        ),
+        MainListReply.fromBuffer,
+        silent: true,
       ),
-      MainListReply.fromBuffer,
+      fallback: () => ReplyFallback.mainList(
+        oid: oid,
+        type: type,
+        mode: mode,
+        offset: offset,
+      ),
     );
     if (res case Success(:final response)) {
       final upMid = response.subjectControl.upMid;
@@ -154,7 +165,9 @@ abstract final class ReplyGrpc {
         if (needRemoveGrpc(topReply, upMid: upMid)) {
           response.clearUpTop();
         } else {
-          topReply.replies.removeWhere((item) => needRemoveGrpc(item, upMid: upMid));
+          topReply.replies.removeWhere(
+            (item) => needRemoveGrpc(item, upMid: upMid),
+          );
         }
       }
 
@@ -198,18 +211,29 @@ abstract final class ReplyGrpc {
     required String? offset,
     Map<Int64, ReplyInfo>? removed,
   }) async {
-    final res = await GrpcReq.request(
-      GrpcUrl.detailList,
-      DetailListReq(
-        oid: Int64(oid),
-        type: Int64(type),
-        root: Int64(root),
-        rpid: Int64(rpid),
-        scene: DetailListScene.REPLY,
-        mode: mode,
-        pagination: offset == null ? null : FeedPagination(offset: offset),
+    final res = await ReplyFallback.request<DetailListReply>(
+      offset: offset,
+      primary: () => GrpcReq.request(
+        GrpcUrl.detailList,
+        DetailListReq(
+          oid: Int64(oid),
+          type: Int64(type),
+          root: Int64(root),
+          rpid: Int64(rpid),
+          scene: DetailListScene.REPLY,
+          mode: mode,
+          pagination: offset == null ? null : FeedPagination(offset: offset),
+        ),
+        DetailListReply.fromBuffer,
+        silent: true,
       ),
-      DetailListReply.fromBuffer,
+      fallback: () => ReplyFallback.detailList(
+        oid: oid,
+        type: type,
+        root: root,
+        mode: mode,
+        offset: offset,
+      ),
     );
     if (res case Success(:final response)) {
       final upMid = response.subjectControl.upMid;
